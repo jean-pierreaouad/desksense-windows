@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "desksense"
+version = "0.1.0"
+description = "Windows microphone hardware feasibility probe for DeskSense"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "numpy>=2.5,<3",
+    "sounddevice>=0.5.6,<1",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=9.1,<10",
+]
+
+[project.scripts]
+desksense-diagnose = "desksense.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+
