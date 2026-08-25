@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-08-23
+Status captured: 2026-08-25
 
 ## Project purpose
 
@@ -15,10 +15,12 @@ Holo compatibility or equivalent behavior is not assumed.
 
 ## Evidence boundary
 
-The project currently establishes Windows audio feasibility and provides tools
-for microphone-channel characterization. It does **not** yet establish tap
-localization, localization accuracy, cross-laptop compatibility, real-time tap
-detection, or reliable action triggering.
+The project currently establishes Windows audio feasibility, provides tools for
+microphone-channel characterization, and has produced initial evidence that
+left/right tap position affects measured channel features on one Lenovo
+endpoint. It does **not** yet establish reliable tap localization, localization
+accuracy, cross-laptop compatibility, real-time tap detection, or reliable
+action triggering.
 
 Real-hardware observations in this document apply only to the Lenovo Windows 11
 development laptop and the tested endpoints and procedures.
@@ -34,6 +36,13 @@ development laptop and the tested endpoints and procedures.
 | Audio backend | PortAudio V19.7.0-devel |
 | Numerical library | NumPy 2.5.2 |
 | Test framework | pytest 9.1.1 |
+
+## Current checkpoint result
+
+WDM-KS device 18 exposes two active, meaningfully different endpoint channels,
+and repeated controlled observations provide initial evidence that left/right
+tap position changes measurable channel features. Classification and
+localization accuracy have **not** been measured.
 
 ## Delivered milestones
 
@@ -59,7 +68,7 @@ Verification at completion:
 
 ### Milestone 1.5 — microphone characterization
 
-Status: **tooling complete; endpoint investigation ongoing**
+Status: **complete for initial Lenovo microphone/backend feasibility**
 
 Implemented:
 
@@ -89,14 +98,14 @@ The Intel Smart Sound Technology microphone array is exposed through multiple
 Windows audio APIs. The following indices describe one enumeration session and
 must not be treated as stable identifiers.
 
-| Host API | Observed device | Reported input configuration |
-| --- | ---: | --- |
-| MME | 1 | 4 channels, default 44.1 kHz; 44.1/48 kHz supported |
-| DirectSound | 5 | 4 channels, default 44.1 kHz |
-| WASAPI | 9 | 2 channels, default 48 kHz |
-| WDM-KS | 18 | 2 channels at 48 kHz |
-| WDM-KS | 19 | 4 channels at 16 kHz |
-| WDM-KS | 20 | 4 channels at 16 kHz |
+| Host API | Observed device | Reported input configuration | Current evidence |
+| --- | ---: | --- | --- |
+| MME | 1 | 4 channels, default 44.1 kHz; 44.1/48 kHz supported | Ch1/Ch2 duplicate-like; Ch3/Ch4 inactive |
+| DirectSound | 5 | 4 channels, default 44.1 kHz | Enumerated; further testing paused |
+| WASAPI | 9 | 2 channels, default 48 kHz | Two numerically identical, duplicate-like channels |
+| WDM-KS | 18 | 2 channels at 48 kHz | Two active, meaningfully different channels; currently preferred |
+| WDM-KS | 19 | 4 channels at 16 kHz | Enumerated; further testing paused |
+| WDM-KS | 20 | 4 channels at 16 kHz | Enumerated; further testing paused |
 
 Device indices can change between machines, boots, device changes, and
 PortAudio enumeration sessions. Reports therefore preserve the index together
@@ -144,33 +153,111 @@ laptop has only one physical microphone; Windows, driver, or array DSP may be
 responsible. MME is therefore not currently the preferred endpoint for
 inter-channel localization investigation.
 
+### Controlled WASAPI characterization
+
+A controlled tap was recorded through WASAPI device 9 at 48 kHz with two
+active channels. The strongest transient was near 2.861 seconds. Channels 1 and
+2 were numerically identical in both the whole recording and transient window:
+Pearson correlation 1.000000, normalized difference energy 0.000000, 0.00 dB
+level difference, and zero reported lag. The exploratory heuristic label was
+`duplicate_like`.
+
+Current interpretation: the normal WASAPI endpoint exposes duplicate-like
+processed channels on this tested Lenovo and does not provide useful
+inter-channel spatial information.
+
+### WDM-KS device 18 characterization
+
+WDM-KS device 18 (`Microphone Array 1 (Intel Smart Sound Technology / Intel SST
+Microphone)`) exposes two active channels at 48 kHz. Repeated controlled
+recordings showed substantial, broadly consistent channel differences.
+
+A representative controlled left-side tap produced:
+
+- Ch2 relative RMS versus Ch1: approximately -4.55 dB over the whole recording
+  and -4.79 dB in the transient window.
+- Transient Pearson correlation: approximately +0.135.
+- Transient normalized difference energy: approximately 0.884.
+- Reported transient lag: -48 samples.
+- Exploratory heuristic label: `meaningfully_different`.
+
+WDM-KS device 18 is therefore the current preferred Lenovo endpoint. This
+means only that the endpoint exposes substantially different channel
+information; it does not prove that its channels map directly to separate raw
+physical microphones. Driver or DSP processing may still be involved.
+
+### Initial left/right spatial evidence
+
+A mirrored right-side tap through WDM-KS device 18 differed substantially from
+the controlled left-side observations. Its strongest transient was near 2.498
+seconds, with transient Ch2 relative RMS approximately -2.67 dB, Pearson
+approximately -0.297, normalized difference energy approximately 1.283, and a
+reported lag of +44 samples.
+
+Four subsequent valid alternating LEFT/RIGHT recordings showed the same broad
+grouping tendency:
+
+- Left-side taps: Ch2 substantially weaker than Ch1, low positive Pearson
+  correlation, normalized difference energy below approximately 1, and
+  negative reported lag.
+- Right-side taps: a smaller inter-channel RMS difference, negative Pearson
+  correlation, normalized difference energy above approximately 1, and
+  positive reported lag.
+
+This is initial evidence that tap position affects measurable channel features
+on this endpoint. It is not a classifier-accuracy result: the sample is very
+small, the separation was observed after viewing the data, no held-out
+evaluation exists, tap force and position varied, the transient finder is
+exploratory, and the waveform samples were discarded.
+
+### Open lag-analysis issue
+
+The current normalized cross-correlation search is bounded to +/-48 samples
+(+/-1 ms at 48 kHz). Several left-side results reached exactly -48 samples,
+while some right-side results approached or reached the positive boundary.
+These values must not be interpreted as established physical acoustic
+time-of-arrival measurements.
+
+Future work should consider a several-millisecond exploratory search, explicit
+boundary-hit flags, and analysis of retained waveform windows to determine
+whether lag is genuinely useful.
+
 ## Current technical question
 
-The primary unresolved question is:
+The primary engineering question is now:
 
-> Which Windows microphone endpoint, if any, exposes sufficiently independent
-> spatial information from the Lenovo microphone array for reliable tap
-> localization?
+> Can unseen desk taps be reliably classified into spatial zones?
 
-Planned characterization order, subject to new evidence:
+Broad Windows endpoint exploration is paused. WDM-KS device 18 at 48 kHz with
+two active, meaningfully different channels is the selected endpoint for the
+next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
+tested unless later evidence provides a reason.
 
-1. WASAPI Intel SST endpoint.
-2. WDM-KS microphone-array endpoints.
-3. DirectSound, if it remains useful after the earlier results.
+The next milestone is **Phase 2A — guided labeled tap dataset collection**. Its
+initial target is approximately 20 LEFT and 20 RIGHT taps with natural small
+within-zone variation. The collection workflow should:
 
-Not every endpoint must be tested if earlier evidence changes the architecture.
-If no endpoint exposes useful independent channels, future investigation may
-consider single-channel acoustic or spectral signatures, deeper Windows audio
-access, device-specific array access, or a different sensing strategy. These
-are possibilities, not current design decisions.
+- Use explicit countdown and tap cues.
+- Control or alternate collection order to reduce time/order bias.
+- Retain short labeled multichannel waveform windows locally for later feature
+  extraction.
+- Store reproducibility metadata and basic capture-quality results.
+- Keep raw/local dataset artifacts out of Git by default.
+- Avoid prematurely introducing a GUI or complex machine-learning model.
+- Evaluate held-out samples rather than calling training-set separation
+  accuracy.
+
+Phase 2 should study and adapt suitable ideas from the MIT-licensed Holo project
+with attribution where useful instead of rebuilding algorithms unnecessarily.
 
 ## Roadmap
 
 | Phase | Status |
 | --- | --- |
 | 1 — Windows hardware feasibility | Complete |
-| 1.5 — characterization tooling | Complete; endpoint investigation ongoing |
-| 2 — controlled labeled tap dataset and localization feasibility | Not started |
+| 1.5 — microphone/backend characterization | Complete for initial Lenovo feasibility |
+| 2A — guided labeled LEFT/RIGHT tap dataset | Next |
+| 2B — held-out spatial-feasibility analysis | Not started |
 | 3 — tap detection, features, classification, confidence/rejection | Not started |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
@@ -188,5 +275,7 @@ demonstrates it.
   `reports/.gitkeep` preserves the directory location.
 - Earlier diagnostic and characterization reports may exist locally and are
   not project source artifacts.
+- Phase 2A is expected to retain short waveform windows locally; those future
+  dataset artifacts must remain out of Git by default.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).
