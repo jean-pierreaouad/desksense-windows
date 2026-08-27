@@ -911,6 +911,14 @@ def _find_characterization_configuration(
     )
 
 
+def find_characterization_configuration(
+    audio_backend: Any, device: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Return the existing channel-first configuration for reusable captures."""
+
+    return _find_characterization_configuration(audio_backend, device)
+
+
 def _amplitude_to_dbfs(amplitude: float) -> float | None:
     if amplitude <= 0:
         return None

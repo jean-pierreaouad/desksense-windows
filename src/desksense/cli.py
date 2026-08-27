@@ -9,11 +9,17 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from desksense.characterization import DEFAULT_CHARACTERIZATION_SECONDS
+from desksense.collection import (
+    DEFAULT_SAMPLES_PER_ZONE,
+    DatasetCollectionError,
+    run_guided_collection,
+)
 from desksense.diagnostics import (
     DEFAULT_RECORDING_SECONDS,
     build_backend_error_report,
     collect_characterization_report,
     collect_diagnostic_report,
+    describe_audio_error,
     write_json_report,
 )
 
@@ -24,15 +30,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="desksense-diagnose",
         description=(
-            "Enumerate audio inputs and optionally record a short in-memory sample "
-            "for DeskSense hardware feasibility testing."
+            "Inspect Windows audio inputs, characterize microphone channels, or "
+            "explicitly collect a local labeled tap dataset."
         ),
     )
     parser.add_argument(
         "--device",
         type=_nonnegative_device_index,
         metavar="INDEX",
-        help="input device index to select (defaults to the system default input)",
+        help=(
+            "input device index to select (required for --collect-dataset; "
+            "otherwise defaults to the system default input)"
+        ),
     )
     capture_mode = parser.add_mutually_exclusive_group()
     capture_mode.add_argument(
@@ -52,6 +61,31 @@ def build_parser() -> argparse.ArgumentParser:
             "not saved"
         ),
     )
+    capture_mode.add_argument(
+        "--collect-dataset",
+        action="store_true",
+        help=(
+            "run guided alternating LEFT/RIGHT tap collection and retain accepted "
+            "float32 waveforms locally under datasets/"
+        ),
+    )
+    parser.add_argument(
+        "--samples-per-zone",
+        type=_positive_integer,
+        default=None,
+        metavar="COUNT",
+        help=(
+            "accepted samples to collect for each zone in dataset mode "
+            f"(default: {DEFAULT_SAMPLES_PER_ZONE})"
+        ),
+    )
+    parser.add_argument(
+        "--dataset-root",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="local dataset directory used by --collect-dataset (default: datasets)",
+    )
     parser.add_argument(
         "--save-report",
         nargs="?",
@@ -67,7 +101,26 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.collect_dataset:
+        if args.device is None:
+            parser.error("--collect-dataset requires --device INDEX")
+        if args.save_report is not None:
+            parser.error(
+                "--save-report cannot be combined with --collect-dataset; "
+                "dataset metadata is stored inside the session directory"
+            )
+        if args.samples_per_zone is None:
+            args.samples_per_zone = DEFAULT_SAMPLES_PER_ZONE
+        if args.dataset_root is None:
+            args.dataset_root = Path("datasets")
+        return _run_dataset_collection_cli(args)
+    if args.samples_per_zone is not None or args.dataset_root is not None:
+        parser.error(
+            "--samples-per-zone and --dataset-root require --collect-dataset"
+        )
 
     try:
         audio_backend = _load_audio_backend()
@@ -118,6 +171,53 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"\nJSON report saved to: {saved_path}")
 
     return exit_code
+
+
+def _run_dataset_collection_cli(args: argparse.Namespace) -> int:
+    """Run explicit waveform collection without changing diagnostic behavior."""
+
+    try:
+        audio_backend = _load_audio_backend()
+    except Exception as error:
+        details = describe_audio_error(error)
+        print(
+            f"Could not load the audio backend: {details['message']}",
+            file=sys.stderr,
+        )
+        if details["category"] == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+
+    try:
+        run_guided_collection(
+            audio_backend,
+            device_index=args.device,
+            samples_per_zone=args.samples_per_zone,
+            dataset_root=args.dataset_root,
+        )
+    except KeyboardInterrupt:
+        print(
+            "\nDeskSense dataset collection interrupted; previously accepted "
+            "samples remain in the session directory.",
+            file=sys.stderr,
+        )
+        return 130
+    except EOFError:
+        print(
+            "\nDataset collection input closed; previously accepted samples "
+            "remain in the session directory.",
+            file=sys.stderr,
+        )
+        return 1
+    except DatasetCollectionError as error:
+        print(f"Dataset collection failed: {error}", file=sys.stderr)
+        if error.category == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+    except (OSError, TypeError, ValueError) as error:
+        print(f"Dataset collection failed: {error}", file=sys.stderr)
+        return 1
+    return 0
 
 
 def format_report(report: dict[str, Any]) -> str:
@@ -307,6 +407,24 @@ def _nonnegative_device_index(value: str) -> int:
     if index < 0:
         raise argparse.ArgumentTypeError("device index must be zero or greater")
     return index
+
+
+def _positive_integer(value: str) -> int:
+    try:
+        result = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("value must be an integer") from error
+    if result <= 0:
+        raise argparse.ArgumentTypeError("value must be greater than zero")
+    return result
+
+
+def _print_microphone_permission_guidance() -> None:
+    print(
+        "Enable microphone access in Windows Settings > Privacy & security > "
+        "Microphone, then retry.",
+        file=sys.stderr,
+    )
 
 
 def _find_device(

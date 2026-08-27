@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -174,3 +175,98 @@ def test_cli_auto_characterization_report_uses_distinct_name(
     assert exit_code == 0
     assert len(report_files) == 1
     assert "JSON report saved to" in captured.out
+
+
+def test_dataset_collection_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--collect-dataset",
+            "--device",
+            "18",
+            "--samples-per-zone",
+            "20",
+            "--dataset-root",
+            "local-datasets",
+        ]
+    )
+
+    assert args.collect_dataset is True
+    assert args.device == 18
+    assert args.samples_per_zone == 20
+    assert args.dataset_root == Path("local-datasets")
+    assert args.record is False
+    assert args.characterize is False
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--collect-dataset", "--record", "--device", "18"],
+        ["--collect-dataset", "--characterize", "--device", "18"],
+        ["--collect-dataset", "--device", "18", "--samples-per-zone", "0"],
+    ],
+)
+def test_invalid_dataset_argument_combinations_are_rejected(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(arguments)
+
+
+def test_collection_only_options_are_rejected_without_collection_mode() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--samples-per-zone", "3"])
+
+
+def test_dataset_collection_requires_explicit_device() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--collect-dataset"])
+
+
+def test_dataset_collection_does_not_mix_with_diagnostic_report_saving() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "--collect-dataset",
+                "--device",
+                "18",
+                "--save-report",
+                "reports/not-a-dataset.json",
+            ]
+        )
+
+
+def test_dataset_collection_cli_passes_explicit_options_without_real_audio(
+    monkeypatch, tmp_path
+) -> None:
+    backend = object()
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "_load_audio_backend", lambda: backend)
+
+    def fake_collection(audio_backend, **kwargs):
+        calls.append({"audio_backend": audio_backend, **kwargs})
+        return {"status": "completed"}
+
+    monkeypatch.setattr(cli, "run_guided_collection", fake_collection)
+
+    exit_code = cli.main(
+        [
+            "--collect-dataset",
+            "--device",
+            "18",
+            "--samples-per-zone",
+            "3",
+            "--dataset-root",
+            str(tmp_path / "datasets"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls == [
+        {
+            "audio_backend": backend,
+            "device_index": 18,
+            "samples_per_zone": 3,
+            "dataset_root": tmp_path / "datasets",
+        }
+    ]

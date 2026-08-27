@@ -526,6 +526,155 @@ remains useful when retained waveform windows can be analyzed directly.
   attribution where useful, without prematurely choosing a GUI or complex
   machine-learning model.
 
+## Experiment 9 — Phase 2A guided 2+2 collector pilot
+
+**Purpose**
+
+Physically validate the guided labeled-dataset collector on the selected Lenovo
+endpoint, including alternating labels, cue timing, capture-quality gates, and
+lossless local persistence. The pilot also provided the first retained waveform
+windows for limited offline spatial inspection; it was not designed to measure
+classifier accuracy.
+
+**Implementation verification before physical testing**
+
+- Complete automated suite: 92 tests passed.
+- Focused Phase 2A suite: 44 tests passed.
+- `pip check`, byte compilation/import checks, CLI help, and
+  `git diff --check` passed.
+- `datasets/` was confirmed ignored by Git.
+- Automated tests used injected or synthetic audio and did not access the real
+  microphone.
+
+**Endpoint**
+
+- Device 18: `Microphone Array 1 (Intel Smart Sound Technology / Intel SST
+  Microphone)`.
+- Host API: Windows WDM-KS.
+- 48 kHz, two channels.
+
+The numeric device index describes this enumeration session and is not a
+portable endpoint identifier.
+
+**Session**
+
+- Session ID: `20260826T215711.391122Z-4ed5556c`.
+- Requested samples: two LEFT and two RIGHT.
+- Collection order: alternating LEFT, RIGHT, LEFT, RIGHT.
+
+**Setup and procedure**
+
+- The guided collector requested confirmation before each attempt and used a
+  silent terminal countdown; no audible cue was used.
+- Microphone capture began before `TAP NOW` was displayed.
+- The intended pre-cue interval was 0.200 seconds / 9,600 samples within a
+  1.5-second capture, leaving a nominal 1.3 seconds after the cue.
+- The intended cue offset records collection configuration. It does not measure
+  terminal rendering latency or human reaction time exactly.
+- Four alternating taps were collected. All were accepted on attempts 1–4,
+  with no retries.
+
+**Command**
+
+The recorded session configuration corresponds to:
+
+```powershell
+python -m desksense --collect-dataset --device 18 --samples-per-zone 2
+```
+
+**Accepted samples and timing**
+
+| Collection order | Accepted sample | Strongest transient center | Approximate delay after intended cue | Transient/background contrast |
+| ---: | --- | ---: | ---: | ---: |
+| 1 | LEFT #1 | 1.164 s | 0.964 s | 34.47 dB |
+| 2 | RIGHT #1 | 1.118 s | 0.918 s | 34.48 dB |
+| 3 | LEFT #2 | 0.910 s | 0.710 s | 33.89 dB |
+| 4 | RIGHT #2 | 0.843 s | 0.643 s | 34.43 dB |
+
+All four strongest transients occurred well inside the 1.5-second captures.
+Both channels were active in every accepted attempt, no samples were clipped,
+and all four attempts passed the conservative quality checks.
+
+**Artifact verification**
+
+Each accepted NPZ contained:
+
+- `capture`: 72,000 x 2 float32 samples, representing the complete 1.5-second
+  guided capture.
+- `tap_window`: 9,600 x 2 float32 samples, representing an exploratory 200 ms
+  centered window.
+- Embedded metadata matching the manifest record.
+
+The 200 ms windows contained approximately 96–97% of the observed full-capture
+AC signal energy in this pilot. This is pilot evidence that the current window
+is reasonable for exploratory analysis, not proof that 200 ms is optimal.
+
+**Preliminary offline spatial measurements**
+
+| Accepted sample | Ch2 RMS vs Ch1 | Ch2 peak amplitude vs Ch1 |
+| --- | ---: | ---: |
+| LEFT #1 | -3.96 dB | -5.35 dB |
+| RIGHT #1 | -0.18 dB | +1.18 dB |
+| LEFT #2 | -3.93 dB | -4.92 dB |
+| RIGHT #2 | +0.16 dB | +1.11 dB |
+
+Same-zone waveform repeats were highly similar after small alignment, while
+cross-zone waveform similarity was materially lower. This is encouraging
+additional evidence that LEFT and RIGHT position affects the two-channel
+acoustic signature. With only four samples collected for collector validation,
+it is not a classifier-accuracy result.
+
+**Lag correction and refinement**
+
+The earlier characterization results in Experiments 6–8 used a bounded
+cross-correlation search of only +/-48 samples (+/-1 ms at 48 kHz). Several
+measurements reached that limit. Offline analysis of the retained pilot windows
+with a wider search found the strongest inter-channel offset at approximately
+123–126 samples (approximately 2.56–2.63 ms) in the same direction across all
+four samples.
+
+This refines the earlier interpretation rather than erasing the historical
+measurements: the apparent LEFT-negative / RIGHT-positive lag pattern was
+likely influenced by the +/-1 ms boundary, and the current raw lag evidence
+does not provide useful left/right sign separation in this pilot. The wider
+offset must not be treated as proven physical microphone time of arrival;
+Windows, driver, or microphone-array DSP processing may contribute. Phase 2B
+should determine whether lag has predictive value.
+
+**Interpretation**
+
+The collector completed the requested alternating sequence on the selected
+hardware, placed each observed tap inside its capture, retained the intended
+float32 arrays and matching metadata, and accepted both active channels without
+clipping. The waveform measurements add limited spatial-feasibility evidence,
+but they do not demonstrate reliable localization.
+
+**Limitations**
+
+- The pilot contains only four samples and was explicitly intended to validate
+  the collector.
+- No retry occurred, so this run does not by itself exercise real-world retry
+  frequency or all rejection paths.
+- Tap force and exact within-zone position were not instrumented.
+- The intended cue offset does not measure display scheduling or human reaction
+  latency.
+- The exploratory transient finder and 200 ms window have not been shown to be
+  optimal.
+- No held-out classifier evaluation was performed.
+- The wider lag result may include driver or DSP effects and is not established
+  acoustic time of arrival.
+
+**Resulting decision**
+
+- Treat the Phase 2A collector implementation as physically validated on the
+  tested Lenovo endpoint, while leaving the overall data-collection milestone
+  open.
+- Checkpoint the validated implementation before the main collection run.
+- Collect approximately 20 LEFT and 20 RIGHT taps with natural small
+  within-zone variation.
+- Proceed afterward to Phase 2B held-out spatial-feasibility analysis.
+- Do not report localization or classifier accuracy before that evaluation.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
@@ -534,8 +683,9 @@ part of the source history. Raw audio is not stored in those reports.
 
 The four corrected spatial filenames above are the valid repeatability records;
 false-start recordings are excluded from interpretation even if files remain
-locally. Future Phase 2A waveform datasets will be a distinct local artifact
-type and must also be ignored by Git by default.
+locally. Phase 2A waveform datasets are a distinct local artifact type and are
+ignored by Git by default. The pilot dataset remains local unless explicitly
+moved or shared by the user.
 
 Future entries should preserve the endpoint name and host API as well as the
 session-local device index, physical setup, tap timing/location, exact command,

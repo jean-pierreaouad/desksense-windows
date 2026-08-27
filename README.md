@@ -10,12 +10,14 @@ The project is inspired by the MIT-licensed [Holo project](https://github.com/Ju
 Milestone 1 established the microphone and audio-hardware feasibility probe.
 It enumerates input devices, identifies the default input and host API, checks
 common sample rates, and can measure a short in-memory recording. Milestone 1.5
-adds exploratory channel and endpoint characterization. Neither milestone
-implements tap detection or classification, localization, machine learning, a
-GUI, hotkeys, or action mapping.
+adds exploratory channel and endpoint characterization. Phase 2A adds guided,
+labeled local waveform collection for later offline feasibility work. It does
+not implement the final tap detector or classifier, localization, machine
+learning, a GUI, hotkeys, or action mapping.
 
 No cross-laptop compatibility or tap-classification accuracy is claimed at
-this stage. Raw audio is never saved by this diagnostic.
+this stage. Diagnostic and characterization commands never save raw audio;
+only the separate, explicit dataset-collection command retains waveforms.
 
 ## Environment setup
 
@@ -87,6 +89,62 @@ python -m desksense --characterize --device 7 --save-report reports\wasapi.json
 
 The JSON reports contain device information and calculated metrics, never raw
 audio.
+
+## Collect a guided labeled dataset (Phase 2A)
+
+Phase 2A provides an explicit terminal workflow for collecting reproducible
+LEFT/RIGHT tap examples for later offline analysis. Re-run the hardware
+inventory first because PortAudio device indices can change, then start a
+session with the intended input endpoint:
+
+```powershell
+python -m desksense --collect-dataset --device INDEX --samples-per-zone 20
+```
+
+This collection tooling still requires physical review on the target laptop;
+its presence does not mean a valid dataset or localization result exists yet.
+
+The default order alternates `LEFT`, `RIGHT`, `LEFT`, `RIGHT`, and so on to
+reduce simple time/order bias. Before every attempt, press Enter when ready;
+the tool prints a silent `3`, `2`, `1` countdown, starts the microphone capture,
+waits through a 200 ms pre-cue interval, and then displays `TAP NOW` while the
+same capture is still running. This is a controlled guided cue; terminal
+rendering latency and human reaction time are not measured. A quality failure
+is explained and retries the same zone without advancing its accepted sample
+number. After a usable capture, press Enter to accept it or type `R` to discard
+it and retry, which protects labels when a false start still contains sound.
+
+Each attempt captures about 1.5 seconds as float32 multichannel audio. An
+accepted `.npz` artifact stores that full guided capture and an exact 200 ms
+window centered on the strongest exploratory short-energy region. The 200 ms
+choice preserves useful context but is not claimed to be optimal or a final tap
+detector. Conservative checks reject obviously inactive, non-finite,
+near-clipping, low-contrast, or boundary-truncated attempts. Every configured
+spatial channel must be active under the existing channel-activity heuristic;
+lag and observed LEFT/RIGHT feature values are not acceptance criteria.
+
+Sessions are created without overwriting existing data under the Git-ignored
+`datasets/` directory:
+
+```text
+datasets/<session-id>/
+  session.json
+  manifest.jsonl
+  rejected_attempts.jsonl
+  samples/
+    left_001.npz
+    right_001.npz
+```
+
+`session.json` records the system, PortAudio/backend, endpoint identity, actual
+capture configuration, intended cue offset, targets, and quality parameters.
+`manifest.jsonl` indexes accepted samples and repeats the intended guided-cue
+timing; rejected-attempt metadata contains no waveform.
+Accepted samples remain on this computer unless you explicitly move or upload
+the dataset. Nothing is uploaded automatically, and `datasets/` must remain
+untracked because it contains microphone recordings. If you use
+`--dataset-root` to choose another path inside the repository, add that path to
+`.gitignore` before collecting.
 
 If Windows denies microphone access, enable it under **Settings > Privacy &
 security > Microphone** and retry.

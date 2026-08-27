@@ -69,6 +69,9 @@ class FakeSoundDevice:
         self.enumeration_error = enumeration_error
         self.record_calls: list[dict[str, Any]] = []
         self.settings_calls: list[dict[str, Any]] = []
+        self.recording_active = False
+        self.wait_calls = 0
+        self.stop_calls = 0
 
     def get_portaudio_version(self) -> tuple[int, str]:
         return 1, "PortAudio test backend"
@@ -147,9 +150,19 @@ class FakeSoundDevice:
         )
         if self.recording_error is not None:
             raise self.recording_error
+        if not blocking:
+            self.recording_active = True
         if self.recording is not None:
             return self.recording.copy()
         return np.zeros((frames, channels), dtype=np.float32)
+
+    def wait(self) -> None:
+        self.wait_calls += 1
+        self.recording_active = False
+
+    def stop(self) -> None:
+        self.stop_calls += 1
+        self.recording_active = False
 
 
 @pytest.fixture
