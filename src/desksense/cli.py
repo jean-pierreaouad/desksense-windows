@@ -8,6 +8,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
 
+from desksense.analysis import (
+    DatasetAnalysisError,
+    INTERACTION_CONTEXT_CHOICES,
+    analyze_dataset,
+    format_analysis_summary,
+    write_analysis_report,
+)
 from desksense.characterization import DEFAULT_CHARACTERIZATION_SECONDS
 from desksense.collection import (
     DEFAULT_SAMPLES_PER_ZONE,
@@ -31,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="desksense-diagnose",
         description=(
             "Inspect Windows audio inputs, characterize microphone channels, or "
-            "explicitly collect a local labeled tap dataset."
+            "collect or analyze a local labeled tap dataset."
         ),
     )
     parser.add_argument(
@@ -40,7 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="INDEX",
         help=(
             "input device index to select (required for --collect-dataset; "
-            "otherwise defaults to the system default input)"
+            "diagnostic/characterization modes otherwise use the system default; "
+            "not used by offline analysis)"
         ),
     )
     capture_mode = parser.add_mutually_exclusive_group()
@@ -69,6 +77,15 @@ def build_parser() -> argparse.ArgumentParser:
             "float32 waveforms locally under datasets/"
         ),
     )
+    capture_mode.add_argument(
+        "--analyze-dataset",
+        type=Path,
+        metavar="SESSION",
+        help=(
+            "validate and analyze one Phase 2A session entirely offline; a JSON "
+            "analysis report is always written"
+        ),
+    )
     parser.add_argument(
         "--samples-per-zone",
         type=_positive_integer,
@@ -87,6 +104,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="local dataset directory used by --collect-dataset (default: datasets)",
     )
     parser.add_argument(
+        "--interaction-context",
+        choices=INTERACTION_CONTEXT_CHOICES,
+        default=None,
+        metavar="CONTEXT",
+        help=(
+            "required with --analyze-dataset because tapping-hand context is not "
+            "stored in Phase 2A artifacts; choose hand-location-confounded or "
+            "same-hand"
+        ),
+    )
+    parser.add_argument(
         "--save-report",
         nargs="?",
         const=_AUTO_REPORT,
@@ -94,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "save a JSON report; omit PATH to create a timestamped file under "
-            "reports/"
+            "reports/ (dataset analysis does this even when the option is omitted)"
         ),
     )
     return parser
@@ -103,6 +131,24 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.analyze_dataset is not None:
+        if args.device is not None:
+            parser.error("--device cannot be combined with --analyze-dataset")
+        if args.samples_per_zone is not None or args.dataset_root is not None:
+            parser.error(
+                "--samples-per-zone and --dataset-root cannot be combined with "
+                "--analyze-dataset"
+            )
+        if args.interaction_context is None:
+            parser.error(
+                "--analyze-dataset requires --interaction-context "
+                "{hand-location-confounded,same-hand}"
+            )
+        return _run_dataset_analysis_cli(args)
+
+    if args.interaction_context is not None:
+        parser.error("--interaction-context requires --analyze-dataset SESSION")
 
     if args.collect_dataset:
         if args.device is None:
@@ -171,6 +217,37 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"\nJSON report saved to: {saved_path}")
 
     return exit_code
+
+
+def _run_dataset_analysis_cli(args: argparse.Namespace) -> int:
+    """Run the offline Phase 2B path without loading an audio backend."""
+
+    try:
+        report = analyze_dataset(
+            args.analyze_dataset,
+            interaction_context=args.interaction_context,
+        )
+    except KeyboardInterrupt:
+        print("\nDeskSense dataset analysis interrupted.", file=sys.stderr)
+        return 130
+    except (DatasetAnalysisError, OSError, TypeError, ValueError) as error:
+        print(f"Dataset analysis failed: {error}", file=sys.stderr)
+        return 1
+
+    print(format_analysis_summary(report))
+    requested_path = (
+        _AUTO_REPORT if args.save_report is None else args.save_report
+    )
+    try:
+        report_path = _analysis_report_path(
+            requested_path, report["generated_at_utc"]
+        )
+        saved_path = write_analysis_report(report, report_path)
+    except (OSError, TypeError, ValueError) as error:
+        print(f"Could not save JSON analysis report: {error}", file=sys.stderr)
+        return 1
+    print(f"\nJSON analysis report saved to: {saved_path}")
+    return 0
 
 
 def _run_dataset_collection_cli(args: argparse.Namespace) -> int:
@@ -396,6 +473,17 @@ def _report_path(
         return Path("reports") / f"{prefix}-{timestamp}.json"
     if not isinstance(requested, Path):
         raise TypeError("Report path must be a filesystem path.")
+    return requested
+
+
+def _analysis_report_path(requested: object, generated_at_utc: str) -> Path:
+    if requested is _AUTO_REPORT:
+        timestamp = datetime.fromisoformat(generated_at_utc).strftime(
+            "%Y%m%dT%H%M%S.%fZ"
+        )
+        return Path("reports") / f"desksense-dataset-analysis-{timestamp}.json"
+    if not isinstance(requested, Path):
+        raise TypeError("Analysis report path must be a filesystem path.")
     return requested
 
 

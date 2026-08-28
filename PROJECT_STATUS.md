@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-08-27
+Status captured: 2026-08-28
 
 ## Project purpose
 
@@ -16,12 +16,18 @@ Holo compatibility or equivalent behavior is not assumed.
 ## Evidence boundary
 
 The project currently establishes Windows audio feasibility, provides tools for
-microphone-channel characterization, and includes a guided labeled-dataset
-collector that has passed a small real-hardware pilot. Retained pilot waveforms
-provide additional evidence that left/right tap position affects measured
-channel features on one Lenovo endpoint. The project does **not** yet establish
-reliable tap localization, localization accuracy, cross-laptop compatibility,
-real-time tap detection, or reliable action triggering.
+microphone-channel characterization and guided labeled-dataset collection, and
+includes a reproducible offline LEFT/RIGHT evaluation pipeline. The main
+20 LEFT + 20 RIGHT development dataset is complete, and a predeclared simple
+baseline showed strong within-session separation of the two observed
+interaction conditions.
+
+That dataset contains a material hand/location confound: LEFT means left hand
+at the left location, while RIGHT means right hand at the right location. The
+result therefore does **not** establish pure spatial localization,
+hand-independent localization accuracy, external-session generalization,
+cross-laptop compatibility, real-time tap detection, or reliable action
+triggering.
 
 Real-hardware observations in this document apply only to the Lenovo Windows 11
 development laptop and the tested endpoints and procedures.
@@ -41,11 +47,17 @@ development laptop and the tested endpoints and procedures.
 ## Current checkpoint result
 
 WDM-KS device 18 exposes two active, meaningfully different endpoint channels.
-The Phase 2A collector is implemented and has successfully retained an
-alternating 2 LEFT + 2 RIGHT pilot with complete multichannel captures and
-tap-centered windows. The pilot adds encouraging spatial evidence, but the main
-20 LEFT + 20 RIGHT dataset has not been collected. Classification and
-localization accuracy have **not** been measured.
+The Phase 2A collector and main alternating 20 LEFT + 20 RIGHT dataset are
+complete. Phase 2B offline analysis is implemented and reviewed. On the main
+development session, the predeclared Ch2/Ch1 peak-ratio baseline classified all
+10 examples in a within-session chronological holdout correctly and all 40
+examples across within-session leave-one-pair-out cross-validation correctly.
+
+These results are scoped evidence for separation of the recorded LEFT/RIGHT
+interaction conditions on one user, laptop, desk, setup, and session. They are
+not pure left/right position accuracy or independent external validation. The
+next evidence gate is a separately collected, untouched same-hand external
+session evaluated with a baseline frozen beforehand.
 
 ## Delivered milestones
 
@@ -97,8 +109,8 @@ Verification at completion:
 
 ### Phase 2A — guided labeled tap dataset collection
 
-Status: **collector implemented and pilot-validated; main dataset collection
-pending**
+Status: **collector implemented and validated; main 20 LEFT + 20 RIGHT dataset
+complete**
 
 Implemented:
 
@@ -131,8 +143,43 @@ Physical validation:
   WDM-KS device 18.
 - All four captures were accepted on their first attempt and their retained
   artifacts were structurally verified.
-- This pilot validates the collector workflow on the tested endpoint; it does
-  not complete the intended main dataset or measure classification accuracy.
+- Main session `20260827T171528.349289Z-c0e2caa7` collected 20 accepted LEFT
+  and 20 accepted RIGHT samples in alternating order.
+- One RIGHT attempt was manually rejected and retried; the rejected waveform
+  was not retained or treated as an accepted sample.
+- All 40 accepted artifacts contained 72,000 x 2 float32 complete captures and
+  9,600 x 2 float32 tap windows at 48 kHz. Both expected channels were active,
+  no accepted capture clipped, and transient/background separation was strong.
+
+### Phase 2B — reproducible offline spatial-feasibility analysis
+
+Status: **pipeline implemented and reviewed; formal main-session
+within-session analysis complete**
+
+Implemented:
+
+- Read-only dataset loading with session, manifest, NPZ, embedded-metadata,
+  sample-order, shape, dtype, finite-data, sample-rate, and channel-count
+  integrity validation.
+- Deterministic NumPy-only feature extraction.
+- A predeclared Ch2/Ch1 peak-amplitude ratio in dB as the primary baseline.
+- Training-only midpoint threshold fitting with class direction inferred from
+  training means.
+- Within-session chronological holdout and leave-one-pair-out
+  cross-validation.
+- Machine-readable JSON reporting without waveform arrays.
+- Explicit analyst-supplied evidence context, including the current
+  hand/location confound.
+- An offline CLI path that does not initialize microphone hardware.
+
+Automated verification before the real analysis:
+
+- Complete suite: 154 tests passed.
+- Focused Phase 2B/CLI tests: 62 passed, 16 deselected.
+- `pip check`, byte compilation/import checks, CLI help, and
+  `git diff --check` passed.
+- `datasets/` and generated reports remained ignored by Git.
+- No microphone access occurred during analysis.
 
 ## Lenovo audio endpoints observed
 
@@ -298,6 +345,70 @@ cross-zone similarity was materially lower. These four samples provide
 encouraging additional evidence that position affects the two-channel acoustic
 signature. They do not constitute a classifier evaluation or accuracy result.
 
+### Phase 2B main-session analysis
+
+The offline pipeline validated all 40 accepted artifacts in session
+`20260827T171528.349289Z-c0e2caa7`: 20 LEFT, 20 RIGHT, no orphan NPZ files, and
+a dataset complete against the session request. The session used WDM-KS device
+18 at collection time, 48 kHz, and two channels. The generated evidence report
+is `reports/phase2b-main-session.json` and remains ignored by Git.
+
+The predeclared primary feature was Ch2/Ch1 peak-amplitude ratio in dB:
+
+```text
+20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)
+```
+
+It was selected from the earlier 2+2 pilot before formal analysis of the main
+20+20 dataset. No spectral search or wider-lag feature was used to choose or
+fit the primary result.
+
+All-sample descriptive distributions were:
+
+| Feature | LEFT | RIGHT |
+| --- | --- | --- |
+| Peak ratio dB | n=20; mean -3.101798; std 1.676876; min -5.669502; median -2.933005; max -0.281766 | n=20; mean +3.357663; std 1.025112; min +1.203436; median +3.502110; max +5.721189 |
+| RMS ratio dB | mean -4.061981; min -5.536680; max -2.422510 | mean -0.359265; min -2.049678; max +1.290794 |
+| Zero-lag Pearson | mean -0.029403 | mean -0.212044 |
+| Normalized channel-difference energy | mean 1.028559 | mean 1.210321 |
+
+The observed all-sample peak-ratio ranges did not overlap; the closest
+descriptive separation was approximately 1.485202 dB. The observed RMS-ratio
+ranges also did not overlap. These are descriptive statistics over all accepted
+samples, not independent test results, and the secondary features were not
+promoted to classifiers.
+
+The **within-session chronological holdout** used accepted LEFT/RIGHT #1-#15
+for training and #16-#20 for testing. The 30-sample training means were
+approximately -2.882771 dB for LEFT and +3.683416 dB for RIGHT, producing a
+training-only midpoint threshold of approximately +0.400322 dB. LEFT was below
+the threshold and RIGHT was at or above it. The result was **10/10 on the
+10-sample within-session chronological holdout**: 5/5 LEFT and 5/5 RIGHT, with
+no held-out sample used to fit the threshold. The smallest absolute held-out
+margin was approximately 0.682089 dB for LEFT #17; RIGHT #20 was another close
+example at approximately 0.803113 dB.
+
+The **within-session leave-one-pair-out cross-validation** excluded LEFT #N
+and RIGHT #N in each of 20 folds, refitted the threshold on the other 38
+samples, and classified only the excluded pair. The aggregate was 40/40: 20/20
+LEFT and 20/20 RIGHT. Fold thresholds ranged from approximately +0.0644 dB to
++0.2513 dB. This reduces dependence on any single training pair but is not an
+independent external test.
+
+Some within-session shift was visible. The first 15 samples per class had means
+of approximately -2.882771 dB for LEFT and +3.683416 dB for RIGHT; the last
+five had means of approximately -3.758878 dB and +2.380403 dB respectively.
+Every last-five example remained on the correct side of the training-only
+threshold. This small-session observation does not establish drift mechanics;
+it reinforces the need for session-level external validation.
+
+The formal interpretation is strong within-session evidence that the two
+observed LEFT/RIGHT interaction conditions are separable with a simple,
+interpretable amplitude feature. It is not proof of pure spatial localization:
+LEFT combined the left hand with the left location, RIGHT combined the right
+hand with the right location, and all samples came from one user, laptop, desk,
+setup, and session.
+
 ### Lag-analysis correction and open issue
 
 The earlier characterization analysis searched only +/-48 samples (+/-1 ms at
@@ -322,28 +433,31 @@ larger dataset is available.
 
 The primary engineering question is now:
 
-> Can unseen desk taps be reliably classified into spatial zones?
+> Does the predeclared interaction-condition separation generalize to an
+> untouched session when the same hand and finger tap both locations?
 
 Broad Windows endpoint exploration is paused. WDM-KS device 18 at 48 kHz with
 two active, meaningfully different channels is the selected endpoint for the
 next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
-The Phase 2A collector implementation and small physical pilot are complete.
-The immediate work is to checkpoint the validated collector and then use it to
-collect the main dataset of approximately 20 LEFT and 20 RIGHT taps with
-natural small within-zone variation. The delivered workflow:
+The collector, main development dataset, offline analysis pipeline, and formal
+within-session analysis are complete. The next sequence is:
 
-- Uses explicit countdown and tap cues, with capture active before the cue.
-- Alternates collection order to reduce time/order bias.
-- Retains complete captures and short labeled multichannel waveform windows
-  locally for later feature extraction.
-- Stores reproducibility metadata and basic capture-quality results.
-- Keeps raw/local dataset artifacts out of Git by default.
+1. Checkpoint and freeze the reviewed Phase 2B implementation.
+2. Implement a small reproducible frozen-baseline/external-evaluation path.
+3. Fit the fixed midpoint rule using all 40 accepted samples from development
+   session `20260827T171528.349289Z-c0e2caa7`, now that feature and model
+   selection are complete.
+4. Save the feature name, LEFT/RIGHT training means, threshold, learned
+   direction, source session ID, and fitting rule, then freeze them.
+5. Only afterward, collect an untouched session using the same hand and finger
+   for both LEFT and RIGHT locations.
+6. Apply the frozen baseline without refitting the threshold, changing the
+   feature or direction, or selecting new features from the external results.
 
-After the main dataset is collected, Phase 2B should evaluate held-out samples
-before any accuracy claim; training-set separation must not be reported as
-accuracy.
+That future result must be reported separately as cross-session, same-hand
+external validation. No external threshold or outcome is claimed yet.
 
 Phase 2 should study and adapt suitable ideas from the MIT-licensed Holo project
 with attribution where useful instead of rebuilding algorithms unnecessarily.
@@ -354,15 +468,17 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | --- | --- |
 | 1 — Windows hardware feasibility | Complete |
 | 1.5 — microphone/backend characterization | Complete for initial Lenovo feasibility |
-| 2A — guided labeled LEFT/RIGHT tap dataset | Collector complete and pilot-validated; main 20+20 dataset pending |
-| 2B — held-out spatial-feasibility analysis | Not started |
+| 2A — guided labeled LEFT/RIGHT tap dataset | Collector and main alternating 20+20 development dataset complete |
+| 2B — reproducible offline spatial-feasibility analysis | Pipeline and formal main-session within-session analysis complete |
+| External validation evidence gate | Frozen-baseline capability and untouched same-hand session planned |
 | 3 — tap detection, features, classification, confidence/rejection | Not started |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
 | 6 — installer/UI if justified, benchmarks, demo, and release material | Not started |
 
-No localization-accuracy claim should be made until controlled labeled data
-demonstrates it.
+No pure localization-accuracy claim should be made until an untouched
+same-hand external session isolates location more cleanly and demonstrates
+cross-session generalization.
 
 ## Repository and data-handling state
 
@@ -374,8 +490,11 @@ demonstrates it.
 - Earlier diagnostic and characterization reports may exist locally and are
   not project source artifacts.
 - Phase 2A explicitly retains accepted complete captures and tap windows in
-  local dataset artifacts. The pilot session exists locally under `datasets/`,
-  which is ignored by Git by default.
+  local dataset artifacts. The pilot and main development sessions exist
+  locally under `datasets/`, which is ignored by Git by default.
+- The Phase 2B report `reports/phase2b-main-session.json` contains metrics and
+  metadata but no waveform arrays. It is generated evidence and remains
+  ignored by Git.
 - Diagnostic and characterization commands continue to omit raw audio from
   their JSON reports; waveform retention occurs only in explicit dataset
   collection sessions.

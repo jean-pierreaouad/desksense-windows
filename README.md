@@ -11,9 +11,10 @@ Milestone 1 established the microphone and audio-hardware feasibility probe.
 It enumerates input devices, identifies the default input and host API, checks
 common sample rates, and can measure a short in-memory recording. Milestone 1.5
 adds exploratory channel and endpoint characterization. Phase 2A adds guided,
-labeled local waveform collection for later offline feasibility work. It does
-not implement the final tap detector or classifier, localization, machine
-learning, a GUI, hotkeys, or action mapping.
+labeled local waveform collection. Phase 2B adds reproducible offline
+LEFT/RIGHT feature analysis and within-session evaluation. It does not
+implement the final real-time tap detector or classifier, production
+localization, a GUI, hotkeys, or action mapping.
 
 No cross-laptop compatibility or tap-classification accuracy is claimed at
 this stage. Diagnostic and characterization commands never save raw audio;
@@ -101,8 +102,9 @@ session with the intended input endpoint:
 python -m desksense --collect-dataset --device INDEX --samples-per-zone 20
 ```
 
-This collection tooling still requires physical review on the target laptop;
-its presence does not mean a valid dataset or localization result exists yet.
+The collector has been physically validated on the current Lenovo endpoint.
+That validates the collection workflow, not localization performance or
+cross-laptop behavior.
 
 The default order alternates `LEFT`, `RIGHT`, `LEFT`, `RIGHT`, and so on to
 reduce simple time/order bias. Before every attempt, press Enter when ready;
@@ -148,3 +150,59 @@ untracked because it contains microphone recordings. If you use
 
 If Windows denies microphone access, enable it under **Settings > Privacy &
 security > Microphone** and retry.
+
+## Analyze a labeled dataset offline (Phase 2B)
+
+Phase 2B validates and analyzes one completed Phase 2A session without opening
+the microphone or changing the dataset files:
+
+```powershell
+python -m desksense --analyze-dataset datasets\<SESSION-ID> `
+  --interaction-context hand-location-confounded
+```
+
+The command always prints a readable summary and creates a timestamped JSON
+report under the Git-ignored `reports/` directory. Use an explicit destination
+when a stable experiment filename is helpful:
+
+```powershell
+python -m desksense --analyze-dataset datasets\<SESSION-ID> `
+  --interaction-context hand-location-confounded `
+  --save-report reports\phase2b-main-session.json
+```
+
+The interaction context is required because tapping-hand information is not
+stored in Phase 2A artifacts and must not be guessed from waveforms. Use
+`hand-location-confounded` for the current 20+20 session. The `same-hand`
+choice is reserved for a session whose documented procedure used the same
+hand/finger for both zones; selecting it does not by itself make that session
+an independent external validation.
+
+Before calculating features, the loader verifies `session.json`, every
+`manifest.jsonl` record, and every referenced NPZ. It checks sample identity and
+numbering, embedded metadata equality, float32 array shape and finiteness,
+sample rate/channel consistency, declared tap-window slices, and unexpected
+unindexed NPZ artifacts. It fails without repairing or rewriting inconsistent
+data. Rejected-attempt records are counted for diagnostics but are never used
+as accepted labeled samples.
+
+The fixed per-window feature set includes channel RMS and peaks, Ch2/Ch1 ratios,
+zero-lag Pearson correlation, and normalized channel-difference energy. The
+predeclared primary baseline is Ch2/Ch1 peak ratio in dB. For the 20+20
+protocol, LEFT/RIGHT accepted samples 1–15 fit a midpoint threshold and samples
+16–20 form the test set. A separate deterministic leave-one-pair-out estimate
+fits a new threshold after excluding LEFT #N and RIGHT #N in each fold. Both
+results are within-session evaluations, not independent external validation or
+production accuracy.
+
+The current dataset has an important experimental confound:
+
+- `LEFT` means left desk location **and** the user's left hand.
+- `RIGHT` means right desk location **and** the user's right hand.
+
+Consequently, Phase 2B can measure separation between those observed
+interaction conditions but cannot isolate spatial location from tapping-hand
+or impact-mechanics effects. A future untouched validation session should use
+the same hand/finger for both zones. Analysis reports contain features,
+metadata, evaluation results, and limitations—but no waveform arrays. The
+source recordings remain local and nothing is uploaded automatically.

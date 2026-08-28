@@ -270,3 +270,191 @@ def test_dataset_collection_cli_passes_explicit_options_without_real_audio(
             "dataset_root": tmp_path / "datasets",
         }
     ]
+
+
+def test_dataset_analysis_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--analyze-dataset",
+            "datasets/session-001",
+            "--interaction-context",
+            "hand-location-confounded",
+            "--save-report",
+            "reports/session-001-analysis.json",
+        ]
+    )
+
+    assert args.analyze_dataset == Path("datasets/session-001")
+    assert args.interaction_context == "hand-location-confounded"
+    assert args.save_report == Path("reports/session-001-analysis.json")
+    assert args.record is False
+    assert args.characterize is False
+    assert args.collect_dataset is False
+
+
+@pytest.mark.parametrize(
+    "hardware_mode",
+    ["--record", "--characterize", "--collect-dataset"],
+)
+def test_dataset_analysis_is_mutually_exclusive_with_hardware_modes(
+    hardware_mode: str,
+) -> None:
+    arguments = ["--analyze-dataset", "datasets/session-001", hardware_mode]
+    if hardware_mode == "--collect-dataset":
+        arguments.extend(["--device", "18"])
+
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(arguments)
+
+
+@pytest.mark.parametrize(
+    "extra_arguments",
+    [
+        ["--device", "18"],
+        ["--samples-per-zone", "20"],
+        ["--dataset-root", "datasets"],
+    ],
+)
+def test_dataset_analysis_rejects_hardware_or_collection_only_options(
+    extra_arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "--analyze-dataset",
+                "datasets/session-001",
+                "--interaction-context",
+                "hand-location-confounded",
+                *extra_arguments,
+            ]
+        )
+
+
+def test_dataset_analysis_requires_explicit_interaction_context() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--analyze-dataset", "datasets/session-001"])
+
+
+def test_interaction_context_is_analysis_only() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--interaction-context", "hand-location-confounded"])
+
+
+def test_dataset_analysis_cli_never_loads_audio_backend(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    session_path = tmp_path / "datasets" / "synthetic-session"
+    destination = tmp_path / "analysis.json"
+    report = {
+        "generated_at_utc": "2026-08-27T12:34:56+00:00",
+        "dataset": {"session_path": str(session_path)},
+    }
+    calls: list[object] = []
+
+    def fail_if_audio_is_loaded():
+        pytest.fail("offline analysis must not load sounddevice")
+
+    monkeypatch.setattr(cli, "_load_audio_backend", fail_if_audio_is_loaded)
+    monkeypatch.setattr(
+        cli,
+        "analyze_dataset",
+        lambda path, *, interaction_context: (
+            calls.append((path, interaction_context)) or report
+        ),
+    )
+    monkeypatch.setattr(
+        cli, "format_analysis_summary", lambda _report: "offline summary"
+    )
+
+    def fake_write(received_report, path):
+        calls.append((received_report, path))
+        return path.resolve()
+
+    monkeypatch.setattr(cli, "write_analysis_report", fake_write)
+
+    exit_code = cli.main(
+        [
+            "--analyze-dataset",
+            str(session_path),
+            "--interaction-context",
+            "hand-location-confounded",
+            "--save-report",
+            str(destination),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "offline summary" in captured.out
+    assert "JSON analysis report saved to" in captured.out
+    assert calls == [
+        (session_path, "hand-location-confounded"),
+        (report, destination),
+    ]
+
+
+def test_dataset_analysis_without_save_option_uses_auto_report_path(
+    monkeypatch, tmp_path
+) -> None:
+    session_path = tmp_path / "synthetic-session"
+    report = {
+        "generated_at_utc": "2026-08-27T12:34:56.123456+00:00",
+        "dataset": {"session_path": str(session_path)},
+    }
+    written_paths: list[Path] = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("offline analysis must not load sounddevice"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "analyze_dataset",
+        lambda _path, *, interaction_context: report,
+    )
+    monkeypatch.setattr(cli, "format_analysis_summary", lambda _report: "summary")
+
+    def fake_write(_report, path):
+        written_paths.append(path)
+        return path.resolve()
+
+    monkeypatch.setattr(cli, "write_analysis_report", fake_write)
+
+    exit_code = cli.main(
+        [
+            "--analyze-dataset",
+            str(session_path),
+            "--interaction-context",
+            "hand-location-confounded",
+        ]
+    )
+
+    assert exit_code == 0
+    assert written_paths == [
+        Path("reports/desksense-dataset-analysis-20260827T123456.123456Z.json")
+    ]
+
+
+def test_invalid_dataset_analysis_path_fails_without_audio_backend(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("offline analysis must not load sounddevice"),
+    )
+
+    exit_code = cli.main(
+        [
+            "--analyze-dataset",
+            str(tmp_path / "missing-session"),
+            "--interaction-context",
+            "hand-location-confounded",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Dataset analysis failed" in captured.err
+    assert "does not exist" in captured.err

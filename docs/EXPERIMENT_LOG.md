@@ -675,6 +675,194 @@ but they do not demonstrate reliable localization.
 - Proceed afterward to Phase 2B held-out spatial-feasibility analysis.
 - Do not report localization or classifier accuracy before that evaluation.
 
+## Experiment 10 — Phase 2B main-session offline analysis
+
+**Purpose**
+
+Evaluate a predeclared, interpretable LEFT/RIGHT baseline on the completed main
+development dataset using reproducible offline integrity checks, a
+training-only chronological holdout, and within-session cross-validation. This
+experiment evaluates the two observed interaction conditions; it was not an
+external or hand-independent localization test.
+
+**Implementation verification before the real analysis**
+
+- Complete automated suite: 154 tests passed.
+- Focused Phase 2B/CLI tests: 62 passed, 16 deselected.
+- `pip check`, byte compilation/import checks, CLI help, and
+  `git diff --check` passed.
+- `datasets/` and generated reports remained ignored by Git.
+- The offline analysis path did not initialize microphone hardware.
+
+**Dataset and endpoint**
+
+- Session ID: `20260827T171528.349289Z-c0e2caa7`.
+- Device index at collection time: 18.
+- Endpoint: `Microphone Array 1 (Intel Smart Sound Technology / Intel SST
+  Microphone)` through Windows WDM-KS.
+- Configuration: 48 kHz, two channels.
+- Accepted dataset: 20 LEFT and 20 RIGHT samples, collected in alternating
+  order.
+- One RIGHT attempt was manually rejected and retried. Its waveform was not
+  retained or analyzed as an accepted sample.
+
+Every accepted artifact contained a 72,000 x 2 float32 complete capture and a
+9,600 x 2 float32, 200 ms tap window. Both expected channels were active and no
+accepted sample clipped.
+
+**Experimental context**
+
+- LEFT samples were made with the left hand at the left location.
+- RIGHT samples were made with the right hand at the right location.
+
+Tapping hand/impact mechanics and location therefore changed together. The
+dataset can test LEFT/RIGHT interaction-condition separation, but it cannot
+isolate spatial location alone.
+
+**Command and procedure**
+
+The reproducible offline command for the retained report is:
+
+```powershell
+python -m desksense --analyze-dataset datasets\20260827T171528.349289Z-c0e2caa7 --interaction-context hand-location-confounded --save-report reports\phase2b-main-session.json
+```
+
+The analyzer loaded `session.json`, `manifest.jsonl`, and every accepted NPZ;
+validated their identity, numbering, order, metadata, array structure, dtype,
+sample rate, channel count, finiteness, and tap-window consistency; and then
+computed features from the retained tap windows. It did not modify the dataset
+or access the microphone.
+
+**Integrity result and evidence retention**
+
+- Integrity validation passed.
+- All 40 accepted manifest records had matching validated NPZ artifacts.
+- No orphan NPZ artifacts were found.
+- Accepted counts matched the requested 20 LEFT + 20 RIGHT dataset.
+- Generated report: `reports/phase2b-main-session.json`.
+
+The report is local generated evidence, contains no waveform arrays, and is
+intentionally ignored by Git.
+
+**Predeclared primary feature**
+
+The primary baseline was the Ch2/Ch1 peak-amplitude ratio in dB:
+
+```text
+20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)
+```
+
+This feature was selected from the earlier 2+2 pilot before formal analysis of
+the main 20+20 dataset. No spectral feature search or wider-lag feature was
+used to select the primary result.
+
+**All-sample descriptive measurements**
+
+These summaries use all accepted samples and are not independent test results.
+
+| Feature | LEFT | RIGHT |
+| --- | --- | --- |
+| Peak ratio dB | n=20; mean -3.101798; std 1.676876; min -5.669502; median -2.933005; max -0.281766 | n=20; mean +3.357663; std 1.025112; min +1.203436; median +3.502110; max +5.721189 |
+| RMS ratio dB | mean -4.061981; min -5.536680; max -2.422510 | mean -0.359265; min -2.049678; max +1.290794 |
+| Zero-lag Pearson | mean -0.029403 | mean -0.212044 |
+| Normalized channel-difference energy | mean 1.028559 | mean 1.210321 |
+
+The observed peak-ratio ranges did not overlap. Their closest descriptive
+separation was approximately 1.485202 dB, calculated as the RIGHT minimum
+(+1.203436 dB) minus the LEFT maximum (-0.281766 dB). The observed RMS-ratio
+ranges also did not overlap in this session, but RMS ratio, Pearson, and
+normalized difference energy remained secondary descriptive features rather
+than additional classifiers.
+
+**Within-session chronological holdout**
+
+- Training: accepted LEFT #1-#15 and RIGHT #1-#15, 30 samples total.
+- Test: accepted LEFT #16-#20 and RIGHT #16-#20, 10 samples total.
+- The split used accepted sample number, not filesystem or manifest order.
+- Held-out examples were not used to fit the threshold.
+- Training LEFT mean: approximately -2.882771 dB.
+- Training RIGHT mean: approximately +3.683416 dB.
+- Training-only midpoint threshold: approximately +0.400322 dB.
+- Learned direction: LEFT below the threshold; RIGHT at or above it.
+
+The result was **10/10 on the 10-sample within-session chronological holdout**:
+5/5 LEFT and 5/5 RIGHT.
+
+| Actual class | Predicted LEFT | Predicted RIGHT |
+| --- | ---: | ---: |
+| LEFT | 5 | 0 |
+| RIGHT | 0 | 5 |
+
+The smallest held-out absolute margin from the learned threshold was
+approximately 0.682089 dB for LEFT #17. RIGHT #20 was another relatively close
+example at approximately 0.803113 dB. No held-out sample crossed the threshold.
+
+**Within-session leave-one-pair-out cross-validation**
+
+For each accepted number N, LEFT #N and RIGHT #N were excluded together, the
+midpoint threshold was refitted using the remaining 38 samples, and only the
+excluded pair was classified. Across 20 folds, the aggregate was 40/40: 20/20
+LEFT and 20/20 RIGHT. Fold thresholds ranged from approximately +0.0644 dB to
++0.2513 dB.
+
+This within-session cross-validation shows that the result was not dependent
+on one single included training pair. It is not an independent external test
+and does not establish cross-session generalization.
+
+**Session-shift observation**
+
+The first 15 samples per class had means of approximately -2.882771 dB for
+LEFT and +3.683416 dB for RIGHT. The last five had means of approximately
+-3.758878 dB for LEFT and +2.380403 dB for RIGHT. Despite this shift, every
+last-five sample remained correctly separated by the training-only threshold.
+
+This is a small-session observation, not proof of a drift mechanism. Its main
+implication is that session-level external validation remains necessary.
+
+**Interpretation**
+
+The experiment provides strong within-session evidence that the two observed
+LEFT/RIGHT interaction conditions are separable using a simple, interpretable
+two-channel amplitude feature. The predeclared baseline achieved 10/10 on its
+chronological held-out subset and 40/40 in within-session leave-one-pair-out
+cross-validation.
+
+These results do not establish pure spatial localization. Tapping hand and
+location were confounded, and all data came from one user, laptop, desk, setup,
+and session. They are not hand-independent, external-session, cross-device, or
+final DeskSense accuracy results.
+
+**Limitations**
+
+- LEFT combined left hand with left location; RIGHT combined right hand with
+  right location.
+- All 40 samples came from one collection session and physical setup.
+- The chronological holdout was defined after dataset collection, although its
+  held-out samples were not used to fit the threshold.
+- Leave-one-pair-out folds share the same session and are not independent
+  external datasets.
+- Descriptive all-sample range separation must not be presented as held-out
+  performance.
+- The observed session shift may matter across sessions, users, desks, or
+  devices and has not yet been characterized.
+
+**Resulting decision**
+
+- Treat Phase 2B implementation and formal main-session within-session analysis
+  as complete.
+- Checkpoint and freeze the reviewed Phase 2B implementation.
+- Before collecting an external dataset, implement a reproducible
+  frozen-baseline/external-evaluation path.
+- Fit the already selected midpoint rule on all 40 development samples and
+  preserve its feature name, LEFT/RIGHT means, threshold, direction, source
+  session ID, and fitting rule.
+- Freeze that baseline before collecting a new untouched session using the same
+  hand and finger for both LEFT and RIGHT locations.
+- Apply the frozen baseline without refitting, redefining the feature or
+  direction, or selecting features from the external result.
+- Report the future result separately as cross-session, same-hand external
+  validation. No such outcome is claimed yet.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
