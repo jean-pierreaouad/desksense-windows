@@ -74,6 +74,13 @@ hand more cleanly. It still represents one user, Lenovo laptop, wooden
 desk/setup, two zones, and one external session—not general, cross-device, or
 product-level accuracy.
 
+Phase 3A.1 is now implemented and independently code-reviewed. It provides a
+pure, hardware-independent streaming detector state machine and label-free
+application of the existing frozen threshold. The complete suite passes 280
+tests. No `sounddevice.InputStream`, live `--sense` command, microphone test,
+or Windows action path exists yet, and this implementation has not been
+checkpointed at the time of this status update.
+
 ## Delivered milestones
 
 ### Milestone 1 — Windows audio feasibility
@@ -310,6 +317,125 @@ separation remained, but the unchanged development threshold sat slightly
 above one external RIGHT sample. This motivates later investigation of
 calibration or session-offset handling; no calibrated solution is implemented
 or claimed, and the official frozen result remains unchanged.
+
+### Phase 3A.1 — pure streaming detector and label-free frozen inference
+
+Status: **implementation and code review complete; hardware integration and
+live validation not started; Checkpoint #7 pending**
+
+Implemented:
+
+- A pure `StreamingTapDetector` with `LEARNING`, `ARMED`, `COLLECTING`, and
+  `REFRACTORY` states.
+- Arbitrary sequential frames-by-channels input partitioned internally into
+  fixed five-millisecond analysis blocks, independent of caller chunk sizes.
+- Startup noise learning over an effective 0.75 seconds before any onset may
+  trigger.
+- A phase-insensitive onset gate using pooled multichannel energy and
+  per-channel peak evidence without averaging channel waveforms together.
+- A bounded causal center search spanning 12 ms before the detected onset to
+  25 ms after it.
+- Strongest-transient center refinement using pooled squared multichannel
+  energy, a five-millisecond local-energy region, and earliest-frame tie
+  resolution.
+- Exact raw candidate extraction as
+  `[center - 4,800 : center + 4,800]` at 48 kHz, producing a 9,600 x 2
+  float32 window with channel order and sample values preserved.
+- A sample-indexed 250 ms refractory interval after completed or structurally
+  rejected candidates.
+- Reset and discontinuity handling that clears history, partial blocks,
+  candidate and refractory state, and learned noise state before restarting
+  `LEARNING`.
+- A pure label-free `classify_peak_ratio_value()` helper shared with the
+  existing offline prediction path.
+
+The intended default domain is 48 kHz, two channels, and finite
+float-compatible input. Its main frame geometry is:
+
+| Parameter | Default duration | Frames at 48 kHz |
+| --- | ---: | ---: |
+| Internal detector block | 5 ms | 240 |
+| Startup learning | 0.75 s | 36,000 |
+| Center-search pre-onset context | 12 ms | 576 |
+| Center-search post-onset context | 25 ms | 1,200 |
+| Transient-energy region | 5 ms | 240 |
+| Frozen-feature candidate window | 200 ms | 9,600 |
+| Refractory interval | 250 ms | 12,000 |
+
+These onset thresholds, search dimensions, and refractory duration are initial
+Phase 3A engineering defaults. Synthetic tests exercise them, but continuous
+Lenovo microphone operation has not physically validated or optimized them.
+
+The causal center-selection rule is deliberately distinct from Phase 2A. The
+collector could search globally over a completed 1.5-second attempt; an
+unbounded live stream cannot reproduce that operation causally. Phase 3A.1
+instead opens a fixed local region around an onset, optionally removes DC from
+a separate selection copy, and uses that copy only to choose a center. It does
+not filter, normalize, average, or otherwise modify the exact raw classifier
+candidate.
+
+Bounded-memory and structural-safety behavior:
+
+- The production circular-history capacity is 11,040 frames. Its two-channel
+  float32 storage is 88,320 bytes, approximately 88 KB; partial fixed-block
+  buffering is separately bounded below one 240-frame block.
+- Returned candidates own copied memory and do not change when circular
+  history advances.
+- Caller arrays are copied before processing and are not modified.
+- Rank, channel-count, numeric-conversion, and finite-value validation occurs
+  before detector state mutation.
+- A candidate is rejected rather than padded, shifted, or truncated if its
+  required history is unavailable.
+- A known discontinuity starts a new continuous epoch. No candidate may join
+  samples from before and after the gap.
+
+The frozen primary feature remains unchanged:
+
+```text
+peak_ratio_db_ch2_minus_ch1 =
+    20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)
+```
+
+The label-free helper accepts a feature value, frozen threshold, lower-feature
+zone, and higher-feature zone. Values below the threshold predict the lower
+zone; values at or above it predict the higher zone. It supports either
+LEFT/RIGHT direction, requires finite values and valid class identities, and
+performs no fitting, normalization, calibration, or label-dependent scoring.
+Its margins are distances on the dB feature axis, not probabilities.
+`analysis.predict_peak_ratio()` delegates only this threshold decision to the
+shared helper, preserving Phase 2B and Phase 2C output semantics.
+
+Synthetic verification includes:
+
+- An impulse at non-block-aligned frame 203 produced identical onset, center,
+  window indexes, and exact candidate bytes when supplied as one full chunk,
+  irregular chunks, or one frame at a time.
+- A two-stage event crossed the onset threshold at frame 203 and contained a
+  stronger transient at frame 210. Refinement selected center 210 and the
+  small-test candidate `[110:310]`, demonstrating that causal onset and
+  strongest-transient center are separate concepts.
+- Configuration rejects odd-frame tap windows rather than silently producing
+  an asymmetric centered candidate.
+- Tests cover startup suppression, quiet input, clipping, exact extraction,
+  channel preservation, input immutability, owned output memory, refractory
+  behavior, reset, discontinuity, invalid-input atomicity, bounded memory,
+  feature compatibility, and offline/live decision parity.
+
+Verification:
+
+- Streaming and inference tests: 63 passed (33 streaming, 30 inference).
+- Feature, analysis, and frozen-baseline regression selection: 89 passed.
+- Complete suite: 280 passed.
+- `pip check`, `compileall`, pure import checks, and `git diff --check` passed.
+- Importing the streaming and inference modules did not import sounddevice.
+- No microphone hardware was accessed.
+
+This is a software/DSP architecture milestone, not evidence that live sensing
+works on the Lenovo. Unknowns include WDM-KS callback behavior, physical onset
+thresholds, adaptive-floor behavior under real noise, causal alignment on real
+taps, weak-tap recall, speech/typing/desk-bump false positives, sustained-noise
+behavior, callback sizes, overflow/discontinuity handling, worker scheduling,
+and end-to-end latency.
 
 ## Lenovo audio endpoints observed
 
@@ -563,28 +689,31 @@ larger dataset is available.
 
 The primary engineering question is now:
 
-> Can the validated offline LEFT/RIGHT feature be used in a robust real-time
-> tap pipeline with appropriate confidence and rejection behavior?
+> Can the reviewed pure detector and unchanged frozen LEFT/RIGHT rule be
+> integrated with the real Lenovo WDM-KS stream and produce reliable live tap
+> events without callback gaps, duplicate triggers, or unacceptable false
+> positives and misses?
 
 Broad Windows endpoint exploration is paused. WDM-KS device 18 at 48 kHz with
 two active, meaningfully different channels is the selected endpoint for the
 next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
-The collector, development and external datasets, offline analysis pipeline,
-formal within-session analysis, frozen baseline, and first no-refit same-hand
-cross-session evaluation are complete. The immediate next direction is Phase
-3:
+The collector, datasets, offline analysis, frozen baseline, external
+evaluation, pure streaming detector, and label-free frozen decision path are
+complete. The immediate next action is Checkpoint #7. Phase 3A.2 should then
+add only the live integration boundary:
 
-1. Develop robust tap/event detection without assuming every audio transient
-   is a valid tap.
-2. Reproduce the reviewed feature extraction in a real-time path.
-3. Apply the frozen classifier in real time without silently changing the
-   official Phase 2C result.
-4. Design a transparent confidence/rejection strategy, especially near the
-   threshold.
-5. Add Windows action mapping only after reliable real-time input behavior is
-   demonstrated.
+1. An injectable `sounddevice.InputStream` adapter for the selected endpoint.
+2. Bounded callback-to-worker transport with explicit overflow/discontinuity
+   handling.
+3. A live `--sense` CLI that loads the frozen baseline unchanged and reports
+   structured detection/classification events in the terminal.
+4. Physical Lenovo measurements of detection behavior, causal alignment,
+   false positives, misses, duplicates, and latency.
+
+Windows actions, hotkeys, and GUI behavior remain deferred until reliable
+real-time sensing is demonstrated.
 
 The observed cross-session downward shift motivates later study of calibration
 or session adaptation, but no calibration method is currently selected or
@@ -610,7 +739,9 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | 2B — reproducible offline spatial-feasibility analysis | Pipeline and formal main-session within-session analysis complete |
 | 2C — frozen baseline and external evaluation | Complete; baseline precommitted; first same-hand cross-session result 39/40 |
 | External validation evidence gate | First scoped session complete; further untouched sessions required for modified models or broader claims |
-| 3 — tap detection, features, classification, confidence/rejection | Next |
+| 3A.1 — pure streaming detector and label-free inference | Complete and code-reviewed; 280-test suite passing; Checkpoint #7 pending |
+| 3A.2 — live audio adapter and terminal sensing | Next; no microphone integration exists yet |
+| 3B — physical real-time reliability and rejection validation | Not started |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
 | 6 — installer/UI if justified, benchmarks, demo, and release material | Not started |
@@ -645,5 +776,8 @@ broader claims require additional users, sessions, desks, devices, and zones.
 - Diagnostic and characterization commands continue to omit raw audio from
   their JSON reports; waveform retention occurs only in explicit dataset
   collection sessions.
+- Phase 3A.1 keeps streaming history and candidate windows in memory only. It
+  introduces no filesystem persistence, microphone stream, callback thread,
+  CLI sensing mode, or action execution.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

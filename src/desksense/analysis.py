@@ -21,6 +21,7 @@ from desksense.features import (
     extract_two_channel_features,
     feature_definitions,
 )
+from desksense.inference import classify_peak_ratio_value
 
 
 ANALYSIS_SCHEMA_VERSION = 1
@@ -402,15 +403,17 @@ def predict_peak_ratio(
         raise DatasetAnalysisError(
             f"Primary feature is unavailable for sample {record['sample_id']}."
         )
-    value = _finite_float(feature_value, "primary feature")
-    threshold = _finite_float(fitted_baseline["threshold_db"], "threshold")
-    lower_zone = str(fitted_baseline["lower_feature_zone"])
-    higher_zone = str(fitted_baseline["higher_feature_zone"])
-    predicted = lower_zone if value < threshold else higher_zone
-    threshold_offset = float(value - threshold)
-    signed_toward_right = (
-        threshold_offset if higher_zone == "RIGHT" else -threshold_offset
-    )
+    try:
+        decision = classify_peak_ratio_value(
+            feature_value,
+            fitted_baseline["threshold_db"],
+            fitted_baseline["lower_feature_zone"],
+            fitted_baseline["higher_feature_zone"],
+        )
+    except ValueError as error:
+        raise DatasetAnalysisError(str(error)) from error
+
+    signed_toward_right = decision["signed_margin_toward_RIGHT_db"]
     actual = str(record["zone"])
     actual_class_margin = (
         signed_toward_right if actual == "RIGHT" else -signed_toward_right
@@ -422,15 +425,9 @@ def predict_peak_ratio(
             record.get("collection_order_index")
         ),
         "actual_label": actual,
-        "predicted_label": predicted,
-        "feature_name": PRIMARY_FEATURE_NAME,
-        "feature_value_db": value,
-        "threshold_db": threshold,
-        "threshold_offset_db": threshold_offset,
-        "absolute_margin_db": float(abs(threshold_offset)),
-        "signed_margin_toward_RIGHT_db": float(signed_toward_right),
+        **decision,
         "actual_class_margin_db": float(actual_class_margin),
-        "correct": predicted == actual,
+        "correct": decision["predicted_label"] == actual,
     }
 
 

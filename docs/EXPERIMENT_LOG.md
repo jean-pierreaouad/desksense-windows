@@ -1196,6 +1196,220 @@ cross-device, cross-desk, multi-zone, or product-level robustness.
 - Leave additional robustness sessions and cross-device experiments as later
   validation work rather than the immediate next implementation action.
 
+## Experiment 13 — Phase 3A.1 pure streaming detector and inference parity
+
+**Purpose**
+
+Implement and verify the hardware-independent DSP/state-machine boundary needed
+before adding PortAudio callback behavior. The goal was to separate detector,
+candidate-alignment, chunk-partition, and frozen-inference correctness from the
+future risks introduced by a live audio adapter, callback queue, worker
+scheduling, and physical microphone behavior.
+
+This was an engineering/software milestone. No microphone capture, dataset
+collection, external evaluation, or physical latency measurement was performed.
+
+**Implemented architecture**
+
+The pure streaming detector has four states:
+
+1. `LEARNING` — accumulate startup noise statistics; triggering is disabled.
+2. `ARMED` — evaluate fixed detector blocks for a causal onset.
+3. `COLLECTING` — complete the bounded local center search and wait for the
+   exact post-center samples required by the classifier window.
+4. `REFRACTORY` — suppress nearby duplicate triggers before returning
+   deterministically to `ARMED`.
+
+The default intended input domain is finite float-compatible audio at 48 kHz
+with two ordered channels. Caller chunks may have arbitrary lengths, but the
+detector carries incomplete input forward and performs noise updates, onset
+decisions, and state counters on fixed five-millisecond blocks. At 48 kHz each
+internal block contains 240 frames. This makes caller or future callback
+partitioning external to the defined detector timeline.
+
+Startup noise learning lasts an effective 0.75 seconds / 36,000 frames at
+48 kHz. No event can trigger during this state. The initial thresholds and
+adaptation settings are explicit engineering defaults; they were not tuned
+from Phase 2C external labels and are not yet validated against a continuous
+Lenovo microphone stream.
+
+**Causal onset and candidate-center rule**
+
+An onset opens a bounded local search with the initial geometry:
+
+- 12 ms / 576 frames before the onset.
+- 25 ms / 1,200 frames after the onset.
+
+The center search uses pooled squared multichannel energy, so opposite-polarity
+channels cannot cancel through waveform averaging. It evaluates a five-
+millisecond local-energy region, chooses the strongest such region, and then
+chooses the largest instantaneous pooled-power frame inside it. Exact ties
+resolve to the earliest frame.
+
+A per-channel DC-removed copy may be used for this selection calculation only.
+The raw retained samples are not filtered, normalized, aligned, averaged, or
+otherwise changed.
+
+Once the center is fixed and enough future data exists, the candidate is copied
+exactly as:
+
+```text
+[center - 4,800 : center + 4,800]
+```
+
+At 48 kHz the result is exactly 9,600 x 2 float32 frames, representing 200 ms.
+The tap-window frame count must be even; an odd count is rejected at
+configuration time rather than creating an asymmetric centered window.
+
+This causal selection rule is new. It is not claimed to reproduce Phase 2A's
+global strongest-transient search over a complete 1.5-second guided attempt.
+It preserves the validated raw 200 ms feature domain while replacing the
+noncausal global search with a bounded onset-relative search suitable for a
+future live stream.
+
+The default refractory interval is 250 ms / 12,000 frames at 48 kHz. It is
+sample-indexed and applies after both completed detections and structured
+candidate rejections. This is an initial engineering setting, not a measured
+optimum.
+
+**Bounded memory and discontinuity behavior**
+
+- Raw history uses a fixed circular float32 buffer.
+- Default production history capacity: 11,040 frames.
+- Two-channel history storage: 88,320 bytes, approximately 88 KB.
+- The incomplete internal-block buffer is separately bounded below 240 frames.
+- Caller arrays are validated and copied before processing and are not
+  modified.
+- Emitted candidate arrays own copied memory and remain unchanged as circular
+  history advances.
+- Invalid rank, channel count, numeric conversion, or finite-value input fails
+  before detector state mutation.
+- Missing required history produces a structured rejection; candidates are not
+  padded, shifted, or truncated.
+- `reset()` returns to deterministic initial state.
+- A notified discontinuity clears history, partial blocks, pending candidates,
+  refractory state, and learned noise state, starts a new continuous epoch,
+  and restarts `LEARNING`. A candidate cannot span a known audio gap.
+
+**Synthetic onset/center distinction**
+
+A deterministic two-stage synthetic event first crossed the onset threshold at
+frame 203. A stronger transient occurred later at frame 210 inside the local
+search interval. The detector recorded:
+
+- Onset frame: 203.
+- Refined strongest-transient center: 210.
+- Small-test candidate: `[110:310]`.
+
+The candidate was centered on frame 210 rather than the earlier causal onset,
+and its bytes matched the corresponding source slice. This verifies the
+intended software distinction between onset detection and center refinement;
+it is not evidence about alignment on real desk taps.
+
+**Chunk-partition invariance**
+
+Another deterministic impulse was placed at non-internal-block-aligned frame
+203 in the small test configuration. The same continuous waveform was supplied
+as:
+
+- One complete chunk.
+- Irregularly sized chunks.
+- One frame per call.
+
+All three tested partitions produced identical onset and center indexes, exact
+window start/end indexes, and candidate bytes. Additional tests cover fixed
+chunks and events crossing caller boundaries. This establishes deterministic
+behavior for the tested synthetic inputs, not for an untested PortAudio stream.
+
+**Label-free frozen inference**
+
+The primary feature remains unchanged:
+
+```text
+peak_ratio_db_ch2_minus_ch1 =
+    20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)
+```
+
+The new pure helper is:
+
+```text
+classify_peak_ratio_value(
+    feature_value_db,
+    threshold_db,
+    lower_feature_zone,
+    higher_feature_zone,
+)
+```
+
+Its decision rule is unchanged from the frozen model:
+
+- `feature < threshold` predicts `lower_feature_zone`.
+- `feature >= threshold` predicts `higher_feature_zone`.
+
+Exact ties therefore predict the higher-feature zone. The helper supports both
+normal and reversed LEFT/RIGHT direction, validates finite feature and
+threshold values and the two class identities, requires no actual label, and
+performs no fitting, normalization, or calibration. Reported margins are dB
+distances from the threshold, not probabilities.
+
+The existing offline `analysis.predict_peak_ratio()` now delegates only this
+threshold decision to the shared helper. Regression tests verified parity for
+normal direction, reverse direction, both sides of the threshold, exact ties,
+and invalid/non-finite values. Phase 2B and Phase 2C report semantics remain
+unchanged.
+
+**Automated verification**
+
+- Streaming and inference focused tests: 63 passed.
+  - Streaming: 33 passed.
+  - Inference: 30 passed.
+- Feature, analysis, and frozen-baseline regression selection: 89 passed.
+- Complete automated suite: 280 passed.
+- `pip check`: passed.
+- `compileall`: passed.
+- Pure import check: passed; importing streaming/inference did not import
+  sounddevice.
+- `git diff --check`: passed.
+- No automated test accessed microphone hardware.
+
+Tests also cover startup trigger suppression, quiet input, a single isolated
+event, exact window length and center placement, channel preservation, input
+immutability, owned candidate memory, clipping rejection, unavailable history,
+refractory behavior, reset/replay, discontinuity, invalid-input atomicity,
+bounded history, direct compatibility with
+`extract_two_channel_features()`, and deterministic earliest-frame tie
+handling.
+
+**Limitations and unknowns**
+
+- No `sounddevice.InputStream` adapter or live `--sense` CLI exists.
+- No real WDM-KS callback size, timing, or overflow behavior has been measured.
+- Initial onset thresholds, adaptive noise behavior, center-search geometry,
+  and refractory duration have synthetic coverage but no continuous Lenovo
+  validation.
+- Causal center alignment on real taps is unknown.
+- False positives from speech, typing, desk bumps, and handling noise are
+  unknown.
+- Weak-tap recall and sustained-noise behavior are unknown.
+- Callback-to-worker queue behavior, Python scheduling, and end-to-end latency
+  are not implemented or measured.
+- No Windows action, hotkey, GUI, confidence cutoff, calibration change, or new
+  classifier was introduced.
+
+No real-time sensing accuracy, detection recall, false-positive rate, or
+latency result is claimed from these synthetic tests.
+
+**Resulting decision**
+
+- Treat Phase 3A.1 pure detector and label-free inference implementation as
+  complete and independently code-reviewed.
+- Complete Checkpoint #7 before adding hardware integration.
+- Proceed next to Phase 3A.2: an injected `sounddevice.InputStream` adapter,
+  bounded callback-to-worker transport, discontinuity propagation, and a live
+  terminal `--sense` path that loads the existing frozen baseline unchanged.
+- Continue deferring Windows action execution until physical real-time sensing
+  is reliable.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
