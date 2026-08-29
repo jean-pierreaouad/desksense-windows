@@ -1011,6 +1011,191 @@ baseline contains no waveform data.
 - Apply the frozen baseline unchanged to the future external session and report
   the result separately, whether successful or unsuccessful.
 
+## Experiment 12 — first frozen same-hand cross-session external validation
+
+**Purpose**
+
+Test whether the predeclared LEFT/RIGHT baseline learned entirely from the
+development session could classify a separately collected session without any
+refitting. The external collection used the same hand and finger for both zones
+to control the earlier hand/location confound more cleanly.
+
+**Precommitment and frozen source model**
+
+The Phase 2C implementation and frozen baseline were committed and pushed
+before the external session was collected:
+
+- Git checkpoint: `9bea99f` — `Add frozen baseline and external validation
+  pipeline`.
+- Baseline: `baselines/lenovo-left-right-v1.json`.
+- Baseline artifact file SHA-256 recorded by the external report:
+  `42ca902b06cc840b19df409d2869bad21db3f0d6b78c3850510938b31e13b588`.
+- Source session: `20260827T171528.349289Z-c0e2caa7`.
+- Source interaction context: `hand-location-confounded`.
+- Source condition: LEFT = left hand + left location; RIGHT = right hand +
+  right location.
+- Source membership: 20 LEFT + 20 RIGHT accepted samples, all 40 used.
+- Source dataset SHA-256:
+  `6c4ac4c3881faecbab430d593b6b217e03f58a13ca07522b679ee3d19706516f`.
+- Primary feature: `peak_ratio_db_ch2_minus_ch1`.
+- Frozen threshold: +0.12793235855251162 dB.
+- Frozen direction: LEFT below the threshold; RIGHT at or above it.
+- Tie rule: `feature_value >= threshold_db predicts higher_feature_zone`.
+
+The feature is defined as:
+
+```text
+20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)
+```
+
+**External session and physical protocol**
+
+- Session ID: `20260829T101459.893269Z-566a8435`.
+- External dataset SHA-256:
+  `23f4c56a708ac43b570abef4437760923af1eb542636ceb857dbbcd24cfb945a`.
+- Accepted samples: 20 LEFT and 20 RIGHT, 40 total.
+- Rejected or retried attempts: zero.
+- Interaction context: `same-hand`.
+- The same right index finger made every LEFT and RIGHT tap.
+- The Lenovo laptop, wooden desk/setup, intended LEFT/RIGHT geometry, Windows
+  WDM-KS endpoint, 48 kHz sample rate, two-channel configuration, and 200 ms
+  retained tap-window design were held consistent with the intended protocol.
+- The classifier was not viewed or tuned during collection.
+
+The external dataset did not exist when the frozen baseline was committed.
+
+**No-refit evaluation procedure**
+
+The external evaluator loaded the committed baseline and applied its stored
+feature definition, +0.12793235855251162 dB threshold, direction, and tie rule
+to all 40 accepted external samples. The report explicitly records:
+
+- External samples used to fit threshold: false.
+- Threshold refit performed: false.
+- Direction relearned: false.
+- Feature selection performed: false.
+- External normalization fitted: false.
+
+No external statistic influenced an official prediction.
+
+**Official external result**
+
+- Correct: 39/40.
+- Accuracy: 97.5%.
+- Two-sided 95% Wilson score interval: 87.1183%–99.5573%.
+- LEFT: 20/20 correct.
+- RIGHT: 19/20 correct.
+
+| Actual class | Predicted LEFT | Predicted RIGHT |
+| --- | ---: | ---: |
+| LEFT | 20 | 0 |
+| RIGHT | 1 | 19 |
+
+This result is labeled the first frozen-baseline cross-session same-hand
+external evaluation. It is not a training result, within-session estimate, or
+general DeskSense accuracy figure.
+
+**Official misclassification and near-threshold observations**
+
+The only misclassification was retained unchanged:
+
+- Accepted sample: RIGHT #11.
+- Sample ID: `20260829T101459.893269Z-566a8435-right_011`.
+- Actual label: RIGHT.
+- Predicted label: LEFT.
+- Feature value: +0.050166168713707354 dB.
+- Frozen threshold: +0.12793235855251162 dB.
+- Actual-class margin: -0.07776618983880426 dB.
+
+RIGHT #11 is a valid official external sample and a near-threshold miss. It was
+not removed, relabeled, or used to tune the threshold.
+
+Two correctly classified RIGHT samples were even closer to the threshold on
+its positive side:
+
+- RIGHT #15: feature approximately +0.142095 dB; margin approximately
+  +0.014163 dB.
+- RIGHT #9: feature approximately +0.163920 dB; margin approximately
+  +0.035988 dB.
+
+These margins show that the frozen absolute threshold lies near the lower edge
+of the observed external RIGHT distribution. Margins are threshold distances,
+not calibrated probabilities.
+
+**Post-prediction descriptive distributions**
+
+These statistics were calculated for interpretation after predictions and did
+not alter the official result:
+
+| Class | Mean | Observed range |
+| --- | ---: | ---: |
+| LEFT | -5.630947313147696 dB | -8.668097139293714 to -2.2228560154426775 dB |
+| RIGHT | +1.2090723599046973 dB | +0.050166168713707354 to +2.070086215063918 dB |
+
+The external class ranges did not overlap. The observed gap between the LEFT
+maximum and RIGHT minimum was approximately 2.273022 dB. This descriptive
+separation must not be used to revise the already recorded predictions.
+
+**Cross-session shift**
+
+| Class | Development mean | External mean | Approximate shift |
+| --- | ---: | ---: | ---: |
+| LEFT | -3.1017978964848574 dB | -5.630947313147696 dB | -2.529149 dB |
+| RIGHT | +3.3576626135898806 dB | +1.2090723599046973 dB | -2.148590 dB |
+
+LEFT/RIGHT separation remained strong, but both distributions shifted downward
+between sessions. The one error occurred because the unchanged development
+threshold sat slightly above one external RIGHT sample. This motivates future
+study of calibration or session-offset handling; it does not establish a
+calibration method, and the official frozen baseline and 39/40 result remain
+unchanged.
+
+**Interpretation**
+
+This experiment is stronger evidence than the Phase 2B within-session result:
+
+1. The external session did not exist when the model was frozen and committed.
+2. The primary feature, threshold, direction, and tie rule remained unchanged.
+3. The data came from a separate collection session.
+4. The same right index finger was used at both locations, controlling the
+   previous tapping-hand variable more cleanly.
+5. The frozen model retained 39/40 performance.
+
+The result provides strong evidence that location-dependent acoustic
+information is present in the tested setup.
+
+**Limitations**
+
+- One user.
+- One Lenovo laptop and microphone endpoint.
+- One wooden desk/setup.
+- Two LEFT/RIGHT zones.
+- One external collection session.
+- The development session used different tapping hands across zones, although
+  the external session controlled hand with the same right index finger.
+- The Wilson interval describes finite-sample uncertainty; it is not a promise
+  of future performance.
+
+The result does not establish general 97.5% DeskSense accuracy, cross-user,
+cross-device, cross-desk, multi-zone, or product-level robustness.
+
+**Resulting decision**
+
+- Preserve RIGHT #11, the frozen baseline, and the complete 39/40 external
+  result unchanged.
+- Move the immediate engineering direction toward Phase 3: robust tap/event
+  detection, real-time feature extraction, real-time frozen classification,
+  and a confidence/rejection strategy, followed later by Windows action
+  mapping.
+- Treat calibration/session adaptation as a motivated future investigation,
+  not a completed solution or change to the Phase 2C result.
+- Treat this external session as development evidence once its measurements
+  are used to change calibration or model design.
+- Require another newly collected untouched session before making any future
+  external-validation claim for a modified classifier.
+- Leave additional robustness sessions and cross-device experiments as later
+  validation work rather than the immediate next implementation action.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.

@@ -14,13 +14,16 @@ adds exploratory channel and endpoint characterization. Phase 2A adds guided,
 labeled local waveform collection. Phase 2B adds reproducible offline
 LEFT/RIGHT feature analysis and within-session evaluation. Phase 2C adds the
 offline ability to freeze that already selected simple baseline and later apply
-it unchanged to a different session. It does not implement the final real-time
-tap detector or classifier, production localization, a GUI, hotkeys, or action
-mapping.
+it unchanged to a different session. The first precommitted, same-hand
+cross-session evaluation classified 39 of 40 taps correctly (97.5%) on the
+tested Lenovo laptop and desk setup, without refitting. It does not implement
+the final real-time tap detector or classifier, production localization, a
+GUI, hotkeys, or action mapping.
 
-No cross-laptop compatibility or tap-classification accuracy is claimed at
-this stage. Diagnostic and characterization commands never save raw audio;
-only the separate, explicit dataset-collection command retains waveforms.
+That 97.5% result is one scoped external experiment, not general DeskSense,
+cross-user, cross-desk, or cross-device accuracy. Diagnostic and
+characterization commands never save raw audio; only the separate, explicit
+dataset-collection command retains waveforms.
 
 ## Environment setup
 
@@ -204,14 +207,15 @@ The current dataset has an important experimental confound:
 
 Consequently, Phase 2B can measure separation between those observed
 interaction conditions but cannot isolate spatial location from tapping-hand
-or impact-mechanics effects. A future untouched validation session should use
-the same hand/finger for both zones. Analysis reports contain features,
-metadata, evaluation results, and limitations—but no waveform arrays. The
-source recordings remain local and nothing is uploaded automatically.
+or impact-mechanics effects. Phase 2C therefore used the same right index
+finger for both zones in a separately collected session. Analysis reports
+contain features, metadata, evaluation results, and limitations—but no
+waveform arrays. The source recordings remain local and nothing is uploaded
+automatically.
 
 ## Freeze and externally evaluate the baseline (Phase 2C)
 
-Phase 2C separates model creation from a future cross-session test:
+Phase 2C separates model creation from cross-session testing:
 
 ```text
 existing development session
@@ -227,9 +231,10 @@ feature, threshold rule, learned direction, and tie rule are fixed before the
 external examples exist. The historical Phase 2B chronological holdout remains
 a separate within-session result. Once the feature and model family were fixed,
 all accepted samples in the existing development session became development
-data for the future frozen baseline.
+data for the frozen baseline.
 
-After implementation review, the intended freeze command is:
+The reviewed baseline can be reproduced from its source development session
+with:
 
 ```powershell
 python -m desksense --freeze-baseline datasets\<DEVELOPMENT-SESSION-ID> `
@@ -253,8 +258,7 @@ explicit file names and length framing. Rejected-attempt metadata is not model
 input and is excluded from that fingerprint. Source dataset files are never
 rewritten.
 
-After the baseline is reviewed and checkpointed, collect a new session using
-the same hand/finger for both zones. Evaluate it with:
+Evaluate a different session using the already frozen baseline with:
 
 ```powershell
 python -m desksense `
@@ -283,8 +287,36 @@ and the Wilson interval is not a guarantee of future performance. Generated
 external reports remain under the Git-ignored `reports/` directory and contain
 no waveform arrays.
 
-The planned external context controls the previous hand/location confound more
-cleanly because the same hand/finger will tap both locations. Even a successful
-same-hand cross-session result would remain evidence from one user, laptop, and
-desk/setup—not cross-device or final DeskSense accuracy. No real frozen
-baseline or external result is claimed by this implementation documentation.
+The external context controls the previous hand/location confound more cleanly
+because the same hand/finger taps both locations. Any such result remains
+evidence from its documented users, laptops, desks, and sessions—not automatic
+cross-device or final DeskSense accuracy.
+
+## First frozen cross-session validation
+
+The frozen baseline was committed in Git checkpoint `9bea99f` before the
+external session was collected. The new session used the same right index
+finger for every LEFT and RIGHT tap, while keeping the same Lenovo laptop,
+wooden desk/setup, WDM-KS endpoint, 48 kHz two-channel configuration, and
+200 ms tap windows.
+
+The unchanged frozen baseline classified **39/40 taps correctly (97.5%)**:
+
+| Actual class | Predicted LEFT | Predicted RIGHT |
+| --- | ---: | ---: |
+| LEFT | 20 | 0 |
+| RIGHT | 1 | 19 |
+
+The two-sided 95% Wilson interval was 87.1183%–99.5573%. No external sample was
+used to refit the threshold, relearn direction, select the feature, or fit a
+normalization. The single error, RIGHT #11, was preserved as part of the
+official result: its +0.050166 dB feature value fell just below the frozen
++0.127932 dB threshold.
+
+This is stronger evidence for location-dependent acoustic information than the
+earlier within-session result because the model was committed first, the
+collection session was separate, and tapping hand was held constant across
+zones. It is still only one user, Lenovo laptop, wooden desk/setup, two zones,
+and one external session. It does not establish general 97.5% DeskSense
+accuracy or cross-user, cross-device, cross-desk, multi-zone, or product-level
+robustness.
