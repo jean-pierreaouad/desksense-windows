@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-08-28
+Status captured: 2026-08-29
 
 ## Project purpose
 
@@ -20,14 +20,18 @@ microphone-channel characterization and guided labeled-dataset collection, and
 includes a reproducible offline LEFT/RIGHT evaluation pipeline. The main
 20 LEFT + 20 RIGHT development dataset is complete, and a predeclared simple
 baseline showed strong within-session separation of the two observed
-interaction conditions.
+interaction conditions. Phase 2C now provides a reproducible frozen-baseline
+artifact and a no-refit cross-session evaluation path. The real frozen
+baseline has been generated and reviewed, but no external same-hand session
+has been collected or evaluated.
 
 That dataset contains a material hand/location confound: LEFT means left hand
 at the left location, while RIGHT means right hand at the right location. The
 result therefore does **not** establish pure spatial localization,
 hand-independent localization accuracy, external-session generalization,
 cross-laptop compatibility, real-time tap detection, or reliable action
-triggering.
+triggering. Freezing the development baseline preserves the planned evaluation
+rule; it does not add independent evidence by itself.
 
 Real-hardware observations in this document apply only to the Lenovo Windows 11
 development laptop and the tested endpoints and procedures.
@@ -52,6 +56,14 @@ complete. Phase 2B offline analysis is implemented and reviewed. On the main
 development session, the predeclared Ch2/Ch1 peak-ratio baseline classified all
 10 examples in a within-session chronological holdout correctly and all 40
 examples across within-session leave-one-pair-out cross-validation correctly.
+
+Phase 2C implementation and automated validation are complete. The reviewed
+artifact `baselines/lenovo-left-right-v1.json` freezes the same predeclared
+feature using all 40 accepted development samples. It records a LEFT mean of
+-3.1017978964848574 dB, a RIGHT mean of +3.3576626135898806 dB, and their
+midpoint threshold of +0.12793235855251162 dB. LEFT is below the threshold;
+RIGHT is at or above it. The artifact has not yet been checkpointed at the time
+of this status update.
 
 These results are scoped evidence for separation of the recorded LEFT/RIGHT
 interaction conditions on one user, laptop, desk, setup, and session. They are
@@ -180,6 +192,73 @@ Automated verification before the real analysis:
   `git diff --check` passed.
 - `datasets/` and generated reports remained ignored by Git.
 - No microphone access occurred during analysis.
+
+### Phase 2C — frozen baseline and external evaluation
+
+Status: **implementation complete; real frozen baseline generated and reviewed;
+checkpoint and external same-hand session still pending**
+
+Implemented:
+
+- Offline creation of the fixed LEFT/RIGHT midpoint baseline using every
+  accepted sample in a validated development session.
+- Deterministic exact-byte SHA-256 fingerprinting of `session.json`,
+  `manifest.jsonl`, and each accepted NPZ in manifest order.
+- Strict schema/version, feature, direction, midpoint, membership, fingerprint,
+  finite-value, and waveform-exclusion validation for frozen artifacts.
+- Cross-session evaluation that loads the stored feature, threshold, direction,
+  and tie rule unchanged and never refits them from external data.
+- Separate development and external interaction-context metadata.
+- Confusion matrix, per-sample threshold margins, per-class results, and a
+  two-sided 95% Wilson accuracy interval in local JSON reports.
+- Offline CLI paths that do not initialize microphone hardware.
+
+Verification before generating the real baseline:
+
+- Complete suite: 217 tests passed.
+- Focused Phase 2C tests: 63 passed, 28 deselected.
+- `pip check`, byte compilation, imports, CLI help, and `git diff --check`
+  passed.
+- Imports completed without sounddevice being imported.
+- `datasets/` and `reports/` remained ignored; `baselines/` remained eligible
+  for Git tracking.
+- No microphone hardware was accessed.
+
+Reviewed frozen artifact:
+
+- Path: `baselines/lenovo-left-right-v1.json`.
+- Artifact type: `desksense_frozen_left_right_midpoint_baseline`, schema 1.
+- Source session: `20260827T171528.349289Z-c0e2caa7`.
+- Source context: `hand-location-confounded` — LEFT combined the left hand and
+  left location; RIGHT combined the right hand and right location.
+- Training membership: all 20 LEFT and 20 RIGHT accepted samples; no external
+  samples.
+- Primary feature: `peak_ratio_db_ch2_minus_ch1`, definition version 1,
+  calculated over the complete retained `tap_window` array.
+- LEFT mean: -3.1017978964848574 dB.
+- RIGHT mean: +3.3576626135898806 dB.
+- Frozen midpoint threshold: +0.12793235855251162 dB.
+- Direction: LEFT below the threshold; RIGHT at or above it.
+- Tie rule: `feature_value >= threshold_db predicts higher_feature_zone`.
+- Source dataset SHA-256:
+  `6c4ac4c3881faecbab430d593b6b217e03f58a13ca07522b679ee3d19706516f`.
+- Fingerprint components: one `session.json`, one `manifest.jsonl`, and 40
+  accepted NPZ artifacts. Rejected-attempt metadata is excluded.
+- The baseline stores derived metadata and no raw waveform arrays.
+
+The +0.12793235855251162 dB frozen threshold was derived reproducibly from all
+40 accepted development samples after feature and model selection were
+complete. It is distinct from the historical Phase 2B chronological-holdout
+threshold of approximately +0.400322 dB, which used only accepted #1–#15 per
+class.
+
+For development-data context only, all 20 LEFT values were below the frozen
+threshold and all 20 RIGHT values were above it. Observed LEFT values ranged
+from approximately -5.6695 to -0.2818 dB; RIGHT values ranged from
+approximately +1.2034 to +5.7212 dB. LEFT #17 was closest to the threshold at
+approximately -0.281766 dB, about 0.409699 dB below it. These are
+training/development observations, not external-validation results or a new
+accuracy measurement.
 
 ## Lenovo audio endpoints observed
 
@@ -441,23 +520,30 @@ two active, meaningfully different channels is the selected endpoint for the
 next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
-The collector, main development dataset, offline analysis pipeline, and formal
-within-session analysis are complete. The next sequence is:
+The collector, main development dataset, offline analysis pipeline, formal
+within-session analysis, Phase 2C implementation, and real frozen baseline are
+complete. At the time of this documentation update, the implementation and
+baseline have not yet been checkpointed. The next sequence is:
 
-1. Checkpoint and freeze the reviewed Phase 2B implementation.
-2. Implement a small reproducible frozen-baseline/external-evaluation path.
-3. Fit the fixed midpoint rule using all 40 accepted samples from development
-   session `20260827T171528.349289Z-c0e2caa7`, now that feature and model
-   selection are complete.
-4. Save the feature name, LEFT/RIGHT training means, threshold, learned
-   direction, source session ID, and fitting rule, then freeze them.
-5. Only afterward, collect an untouched session using the same hand and finger
-   for both LEFT and RIGHT locations.
-6. Apply the frozen baseline without refitting the threshold, changing the
-   feature or direction, or selecting new features from the external results.
+1. Complete final validation and Checkpoint #5 commit/push containing the
+   Phase 2C implementation, tests, README updates, these checkpoint documents,
+   and `baselines/lenovo-left-right-v1.json`.
+2. Only after that checkpoint, collect a new untouched session on the same
+   Lenovo laptop and intended endpoint/configuration, using the same hand and
+   finger for both LEFT and RIGHT while preserving the intended zone geometry
+   and 200 ms retained tap-window design.
+3. Evaluate every accepted external sample using the stored feature,
+   +0.12793235855251162 dB threshold, direction, and tie rule unchanged.
+4. Preserve and report the external outcome whether it succeeds or fails.
+
+External evaluation must not refit the threshold, relearn direction, select a
+different feature, normalize from external class statistics, tune from
+external labels, or replace the baseline after seeing the result. If model
+changes are needed, the first session becomes development evidence and another
+untouched future session is required for a new external test.
 
 That future result must be reported separately as cross-session, same-hand
-external validation. No external threshold or outcome is claimed yet.
+external validation. No external outcome is claimed yet.
 
 Phase 2 should study and adapt suitable ideas from the MIT-licensed Holo project
 with attribution where useful instead of rebuilding algorithms unnecessarily.
@@ -470,7 +556,8 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | 1.5 — microphone/backend characterization | Complete for initial Lenovo feasibility |
 | 2A — guided labeled LEFT/RIGHT tap dataset | Collector and main alternating 20+20 development dataset complete |
 | 2B — reproducible offline spatial-feasibility analysis | Pipeline and formal main-session within-session analysis complete |
-| External validation evidence gate | Frozen-baseline capability and untouched same-hand session planned |
+| 2C — frozen baseline and external evaluation | Implementation complete; real baseline generated and reviewed; checkpoint pending |
+| External validation evidence gate | Untouched same-hand session not yet collected or evaluated |
 | 3 — tap detection, features, classification, confidence/rejection | Not started |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
@@ -495,6 +582,10 @@ cross-session generalization.
 - The Phase 2B report `reports/phase2b-main-session.json` contains metrics and
   metadata but no waveform arrays. It is generated evidence and remains
   ignored by Git.
+- The reviewed Phase 2C artifact `baselines/lenovo-left-right-v1.json` contains
+  only derived model, membership, compatibility, fingerprint, and evidence
+  metadata. It contains no waveform arrays and is intended for Git tracking
+  after final validation.
 - Diagnostic and characterization commands continue to omit raw audio from
   their JSON reports; waveform retention occurs only in explicit dataset
   collection sessions.

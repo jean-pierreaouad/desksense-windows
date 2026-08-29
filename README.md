@@ -12,9 +12,11 @@ It enumerates input devices, identifies the default input and host API, checks
 common sample rates, and can measure a short in-memory recording. Milestone 1.5
 adds exploratory channel and endpoint characterization. Phase 2A adds guided,
 labeled local waveform collection. Phase 2B adds reproducible offline
-LEFT/RIGHT feature analysis and within-session evaluation. It does not
-implement the final real-time tap detector or classifier, production
-localization, a GUI, hotkeys, or action mapping.
+LEFT/RIGHT feature analysis and within-session evaluation. Phase 2C adds the
+offline ability to freeze that already selected simple baseline and later apply
+it unchanged to a different session. It does not implement the final real-time
+tap detector or classifier, production localization, a GUI, hotkeys, or action
+mapping.
 
 No cross-laptop compatibility or tap-classification accuracy is claimed at
 this stage. Diagnostic and characterization commands never save raw audio;
@@ -206,3 +208,83 @@ or impact-mechanics effects. A future untouched validation session should use
 the same hand/finger for both zones. Analysis reports contain features,
 metadata, evaluation results, and limitations—but no waveform arrays. The
 source recordings remain local and nothing is uploaded automatically.
+
+## Freeze and externally evaluate the baseline (Phase 2C)
+
+Phase 2C separates model creation from a future cross-session test:
+
+```text
+existing development session
+  -> fit the fixed midpoint rule using every accepted development sample
+  -> write and review a frozen baseline artifact
+  -> checkpoint that artifact before collecting external data
+  -> collect an untouched same-hand LEFT/RIGHT session
+  -> evaluate every external sample without refitting
+```
+
+This is stronger than repeatedly tuning on the same dataset because the primary
+feature, threshold rule, learned direction, and tie rule are fixed before the
+external examples exist. The historical Phase 2B chronological holdout remains
+a separate within-session result. Once the feature and model family were fixed,
+all accepted samples in the existing development session became development
+data for the future frozen baseline.
+
+After implementation review, the intended freeze command is:
+
+```powershell
+python -m desksense --freeze-baseline datasets\<DEVELOPMENT-SESSION-ID> `
+  --interaction-context hand-location-confounded `
+  --save-baseline baselines\lenovo-left-right-v1.json
+```
+
+The command is entirely offline, validates the dataset, extracts the existing
+`peak_ratio_db_ch2_minus_ch1` feature, computes the LEFT and RIGHT means from
+all accepted development samples, and freezes their midpoint and learned
+direction. It never reuses the old Phase 2B 1-15 training subset. The baseline
+JSON contains compact derived metadata and no waveform arrays, refuses
+overwrite, and is intended to be eligible for Git review and tracking;
+`baselines/` is deliberately not ignored.
+
+The artifact also records every training sample ID and primary-feature value,
+the source endpoint/configuration, and a deterministic SHA-256 fingerprint. The
+fingerprint covers the exact `session.json` and `manifest.jsonl` bytes followed
+by each manifest-referenced accepted NPZ in logical collection order, with
+explicit file names and length framing. Rejected-attempt metadata is not model
+input and is excluded from that fingerprint. Source dataset files are never
+rewritten.
+
+After the baseline is reviewed and checkpointed, collect a new session using
+the same hand/finger for both zones. Evaluate it with:
+
+```powershell
+python -m desksense `
+  --evaluate-frozen-baseline datasets\<EXTERNAL-SESSION-ID> `
+  --baseline baselines\lenovo-left-right-v1.json `
+  --interaction-context same-hand `
+  --save-report reports\phase2c-external.json
+```
+
+External evaluation loads the stored feature definition, threshold, direction,
+and tie rule unchanged and classifies every accepted external sample. It does
+not fit class means, move the threshold, relearn direction, normalize from
+external labels, run model selection, or use external samples in any training
+step. It rejects the source session itself, an exact full-dataset fingerprint
+match, and incompatible endpoint/channel/window configurations. Baseline and
+external-session timestamps are retained as provenance and the report states
+whether their nominal order matches the planned precommitment workflow, but
+clock metadata is not treated as trusted proof or a brittle hard-failure rule.
+The baseline should still be reviewed and checkpointed before external data is
+collected.
+
+The terminal and JSON outputs include explicit confusion counts, per-class and
+per-sample results, threshold margins, and a two-sided 95% Wilson interval for
+finite-sample accuracy. Margins are threshold distances, not probabilities,
+and the Wilson interval is not a guarantee of future performance. Generated
+external reports remain under the Git-ignored `reports/` directory and contain
+no waveform arrays.
+
+The planned external context controls the previous hand/location confound more
+cleanly because the same hand/finger will tap both locations. Even a successful
+same-hand cross-session result would remain evidence from one user, laptop, and
+desk/setup—not cross-device or final DeskSense accuracy. No real frozen
+baseline or external result is claimed by this implementation documentation.

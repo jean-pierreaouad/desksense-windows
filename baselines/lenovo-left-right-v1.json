@@ -1,0 +1,680 @@
+{
+  "artifact_type": "desksense_frozen_left_right_midpoint_baseline",
+  "baseline_schema_version": 1,
+  "classifier": {
+    "direction": "LEFT below threshold; RIGHT at or above threshold",
+    "fitting_rule": "Compute the arithmetic mean of the primary feature for every accepted LEFT sample and every accepted RIGHT sample in the source development session; set threshold_db to the midpoint of those two means; infer the lower- and higher-feature zones from the ordering of the means.",
+    "higher_feature_zone": "RIGHT",
+    "lower_feature_zone": "LEFT",
+    "threshold_db": 0.12793235855251162,
+    "tie_rule": "feature_value >= threshold_db predicts higher_feature_zone",
+    "training_class_means_db": {
+      "LEFT": -3.1017978964848574,
+      "RIGHT": 3.3576626135898806
+    },
+    "type": "one_dimensional_midpoint_threshold"
+  },
+  "created_at_utc": "2026-08-29T07:40:28.377622+00:00",
+  "evidence_limitations": [
+    "The source development session is a single-session dataset from one user, laptop, desk, and setup.",
+    "The source interaction context is hand-location-confounded: LEFT = left hand + left location and RIGHT = right hand + right location, so the source dataset cannot isolate location alone.",
+    "Interaction context is explicitly supplied; the artifact does not infer tapping hand from audio or Phase 2A metadata.",
+    "A future external result must use this feature, threshold, direction, and tie rule unchanged and must not refit on external samples.",
+    "The frozen baseline is not a cross-device or final DeskSense model."
+  ],
+  "feature": {
+    "definition": "20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)",
+    "definition_version": 1,
+    "name": "peak_ratio_db_ch2_minus_ch1",
+    "source_window": "complete retained tap_window array",
+    "units": "dB"
+  },
+  "project_phase": "2C",
+  "source_development_dataset": {
+    "accepted_count_by_zone": {
+      "LEFT": 20,
+      "RIGHT": 20
+    },
+    "accepted_sample_count": 40,
+    "all_source_accepted_samples_used": true,
+    "compatibility": {
+      "channel_count": 2,
+      "dataset_schema_version": 1,
+      "device_index_at_collection": 18,
+      "endpoint_name": "Microphone Array 1 (Intel® Smart Sound Technology (Intel® SST) Microphone)",
+      "host_api_name": "Windows WDM-KS",
+      "sample_rate_hz": 48000.0,
+      "tap_window_duration_seconds": 0.2,
+      "tap_window_frames": 9600
+    },
+    "external_samples_used": false,
+    "fingerprint": {
+      "algorithm": "SHA-256",
+      "components": [
+        {
+          "byte_size": 3201,
+          "path": "session.json",
+          "role": "session_metadata",
+          "sha256_hex": "b39c12d77306f5aecea8334d853dcd5b3312887d23d53a529befa904edb87388"
+        },
+        {
+          "byte_size": 254026,
+          "path": "manifest.jsonl",
+          "role": "accepted_manifest",
+          "sha256_hex": "f7d6f309d29d4845317a72b7c437d050ab4f145297f63b014158fb004905814c"
+        },
+        {
+          "byte_size": 146192,
+          "path": "samples/left_001.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "f78f2aec40c45dead9128bbfc390e6bf24f898d47f3e9629141b325b2bc9325e"
+        },
+        {
+          "byte_size": 141772,
+          "path": "samples/right_001.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "8258a1efeb5dc63fb8840df500977b92291860dddeb8f3eafeab68c6ac48c9c0"
+        },
+        {
+          "byte_size": 142392,
+          "path": "samples/left_002.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "ac674d85b1437fb2fe3fca198993efeaa0c6ca3e25464a0c8b5ee648a623af34"
+        },
+        {
+          "byte_size": 141137,
+          "path": "samples/right_002.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "6f483cde277ed51c9709d3bc7acc48b99bc704926793e75d563123ba797cd325"
+        },
+        {
+          "byte_size": 145713,
+          "path": "samples/left_003.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "c9caaeac53ba277a1b7ecf3d9f2733ca1fc74b4b3b891086d8a5fe3b825e7e44"
+        },
+        {
+          "byte_size": 140500,
+          "path": "samples/right_003.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "d6e6cd10b417d69584105fe72ee63c1cfb606e7c5c10cb068edf0374ae5553da"
+        },
+        {
+          "byte_size": 142581,
+          "path": "samples/left_004.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "ffb692141736720bda8e85db9cdd6fb637e5939615cc7cb364042ec0f0d183c4"
+        },
+        {
+          "byte_size": 143493,
+          "path": "samples/right_004.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "a8c4471c55dc824c209c08fd95e03b8649a4892ef91bd25274d2052bea1833f1"
+        },
+        {
+          "byte_size": 144453,
+          "path": "samples/left_005.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "1338c6931f93d78927012e6d2dc8dc1b14e2cf6830956d433de8777f25b53bbe"
+        },
+        {
+          "byte_size": 137717,
+          "path": "samples/right_005.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "85eec3e008f861af38ea58158e3004154719272c1d2854b41e78bcd074e62273"
+        },
+        {
+          "byte_size": 144695,
+          "path": "samples/left_006.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "15d7e4e16bd268583b10e83e7cf8e2fc7ef3d2659e2203a35b0341eec6beccbd"
+        },
+        {
+          "byte_size": 142530,
+          "path": "samples/right_006.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "17c3469950acdb6d69d8b48e1e28aa6c6fcdc9636c8c126d16557be3716a2246"
+        },
+        {
+          "byte_size": 144064,
+          "path": "samples/left_007.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "a54bdfb16ea78c3de618488a9ee28df8e6d3e4174bc5231e0945979820bb2f4f"
+        },
+        {
+          "byte_size": 142280,
+          "path": "samples/right_007.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "26d6d533d134b36393d25ec630cd05db54727eb22c32b6efeb0ce35085f18734"
+        },
+        {
+          "byte_size": 143205,
+          "path": "samples/left_008.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "6ff9be2eb23ef65e762dadafe0ac091a3533e9df975afbb3a3ae4b95745cf6e9"
+        },
+        {
+          "byte_size": 139052,
+          "path": "samples/right_008.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "6993a3fc7c874beda230c176ecc94f4ec355ca12e4ce62b6174c5b162a8797a7"
+        },
+        {
+          "byte_size": 141297,
+          "path": "samples/left_009.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "111b5ebaba1f747e00a25543d508448e2c8b6987d2fc036eebd87c9019f7c07a"
+        },
+        {
+          "byte_size": 142225,
+          "path": "samples/right_009.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "e49470a08ad7fbccab0bad4645056b5cee0d20f03f6a160392962b3a72f1df09"
+        },
+        {
+          "byte_size": 142477,
+          "path": "samples/left_010.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "76989ea29fc4c48d18478f3b0b5b8d71fad5759bb6881b788fc7b157a3a66e1b"
+        },
+        {
+          "byte_size": 142299,
+          "path": "samples/right_010.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "3f1fb7adb0b7f26ede0e639083de9d11ef06fb9c4704cd2f80ebf490bcc28667"
+        },
+        {
+          "byte_size": 143907,
+          "path": "samples/left_011.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "d19339896813d2993b37746c8d44ad9e4e2413a66e08bf35eecb6dadcd692a6d"
+        },
+        {
+          "byte_size": 143791,
+          "path": "samples/right_011.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "33b83c1ca6a77248eeacc215180d57829a8470655e9694e548b7a4cb3ad0befd"
+        },
+        {
+          "byte_size": 141288,
+          "path": "samples/left_012.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "9d640e2c1a64371a1a0257cd941be3090f59d37efa0e8db4692870bef9d7b780"
+        },
+        {
+          "byte_size": 143982,
+          "path": "samples/right_012.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "73f86bd29971c2686fa6ab2c8061e3dbf165d54f3bbad784484ca9b107481802"
+        },
+        {
+          "byte_size": 141964,
+          "path": "samples/left_013.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "1d4b373bbdfa16721fcd7d26ff6ea2bc46e8ac3579cb71b50e2c442068f458ff"
+        },
+        {
+          "byte_size": 141387,
+          "path": "samples/right_013.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "8403e2aea326b48279b46b31fc6ebb053137d93fb858c1befe5d8be676bb06ac"
+        },
+        {
+          "byte_size": 143036,
+          "path": "samples/left_014.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "1463fdd4480f30c7bca0a43164d6dc7317fd365417178355857bb809ba5fa89c"
+        },
+        {
+          "byte_size": 143018,
+          "path": "samples/right_014.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "658db05a93400340bfcb96b386b28ea468cde9db356895a8cb15af156cac3fd4"
+        },
+        {
+          "byte_size": 144855,
+          "path": "samples/left_015.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "f761d516e2b77eb1a607c6fde2f18f5698657fbefa5bb7eca4d116a40c283b33"
+        },
+        {
+          "byte_size": 140092,
+          "path": "samples/right_015.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "bb84f101be6e4b4ddf17f8ddc38452f5716673f2b463267a7e574a17d2abcf2a"
+        },
+        {
+          "byte_size": 143211,
+          "path": "samples/left_016.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "9a7af46cdccfc2b48df4ca8866663501e9893d2c434d151f8a8741428f110674"
+        },
+        {
+          "byte_size": 143327,
+          "path": "samples/right_016.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "62ef02294e66b6e86d7cb0197133e8a1d7be4e6e258550b74da3bc15493e36cc"
+        },
+        {
+          "byte_size": 140919,
+          "path": "samples/left_017.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "cc63bab1b101dc1fbad6fff3ed2f3cc0588679cdf84f410f3c8f9f67d60ab812"
+        },
+        {
+          "byte_size": 140491,
+          "path": "samples/right_017.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "2179ee5921c0c8e18a445997fb00d15b0165b8a44e1054b22d71574acacf4cc7"
+        },
+        {
+          "byte_size": 143166,
+          "path": "samples/left_018.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "84d073142bcbf308740f5954f1a7cf8c1ba66831f9ba3872bc1535834c2f725d"
+        },
+        {
+          "byte_size": 142038,
+          "path": "samples/right_018.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "395f8687546f3f704e84a2a443785453b701c937369a5e66075d8451b9be97ad"
+        },
+        {
+          "byte_size": 143779,
+          "path": "samples/left_019.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "d3e81d7d14c6d296250c6b3f71ddce661cc661ee539cef74c14d8dca16b22dc2"
+        },
+        {
+          "byte_size": 141615,
+          "path": "samples/right_019.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "8aba881e55db0ca3ad8238d65e48cedc674012c9485719c6c342ea5e7b9d13ae"
+        },
+        {
+          "byte_size": 142766,
+          "path": "samples/left_020.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "c78e855fb2f64671661f736d681a911e5b4b4d965fea143c11347058bea30840"
+        },
+        {
+          "byte_size": 143697,
+          "path": "samples/right_020.npz",
+          "role": "accepted_sample_artifact",
+          "sha256_hex": "6d5d81fa2030d79bec982af3c7e3980ea0ec5bb345d7983383d309ace15c9db4"
+        }
+      ],
+      "digest_hex": "6c4ac4c3881faecbab430d593b6b217e03f58a13ca07522b679ee3d19706516f",
+      "framing": "ASCII domain prefix 'DeskSense Phase 2A source dataset fingerprint\\0version 1\\0'; then for each component the ASCII marker 'component\\0' followed by its UTF-8 role, UTF-8 portable path, and raw file payload, each prefixed by an unsigned 64-bit big-endian byte length",
+      "logical_order": "session.json, manifest.jsonl, then accepted NPZ artifacts in manifest order",
+      "rejected_attempts_included": false,
+      "schema_version": 1,
+      "scheme": "desksense_phase2a_referenced_files_sha256_v1"
+    },
+    "interaction_context": "hand-location-confounded",
+    "session_id": "20260827T171528.349289Z-c0e2caa7",
+    "training_membership": [
+      {
+        "accepted_sample_number": 1,
+        "collection_order_index": 1,
+        "npz_sha256_hex": "f78f2aec40c45dead9128bbfc390e6bf24f898d47f3e9629141b325b2bc9325e",
+        "primary_feature_value_db": -2.606975924914532,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_001",
+        "sample_path": "samples/left_001.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 1,
+        "collection_order_index": 2,
+        "npz_sha256_hex": "8258a1efeb5dc63fb8840df500977b92291860dddeb8f3eafeab68c6ac48c9c0",
+        "primary_feature_value_db": 3.7346362295784368,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_001",
+        "sample_path": "samples/right_001.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 2,
+        "collection_order_index": 3,
+        "npz_sha256_hex": "ac674d85b1437fb2fe3fca198993efeaa0c6ca3e25464a0c8b5ee648a623af34",
+        "primary_feature_value_db": -2.918870609577489,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_002",
+        "sample_path": "samples/left_002.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 2,
+        "collection_order_index": 4,
+        "npz_sha256_hex": "6f483cde277ed51c9709d3bc7acc48b99bc704926793e75d563123ba797cd325",
+        "primary_feature_value_db": 3.6561024776986777,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_002",
+        "sample_path": "samples/right_002.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 3,
+        "collection_order_index": 5,
+        "npz_sha256_hex": "c9caaeac53ba277a1b7ecf3d9f2733ca1fc74b4b3b891086d8a5fe3b825e7e44",
+        "primary_feature_value_db": -2.917414351289906,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_003",
+        "sample_path": "samples/left_003.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 3,
+        "collection_order_index": 6,
+        "npz_sha256_hex": "d6e6cd10b417d69584105fe72ee63c1cfb606e7c5c10cb068edf0374ae5553da",
+        "primary_feature_value_db": 4.743875917867971,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_003",
+        "sample_path": "samples/right_003.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 4,
+        "collection_order_index": 7,
+        "npz_sha256_hex": "ffb692141736720bda8e85db9cdd6fb637e5939615cc7cb364042ec0f0d183c4",
+        "primary_feature_value_db": -1.2912879256412917,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_004",
+        "sample_path": "samples/left_004.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 4,
+        "collection_order_index": 8,
+        "npz_sha256_hex": "a8c4471c55dc824c209c08fd95e03b8649a4892ef91bd25274d2052bea1833f1",
+        "primary_feature_value_db": 2.7892760946923945,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_004",
+        "sample_path": "samples/right_004.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 5,
+        "collection_order_index": 9,
+        "npz_sha256_hex": "1338c6931f93d78927012e6d2dc8dc1b14e2cf6830956d433de8777f25b53bbe",
+        "primary_feature_value_db": -5.6412239734913525,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_005",
+        "sample_path": "samples/left_005.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 5,
+        "collection_order_index": 10,
+        "npz_sha256_hex": "85eec3e008f861af38ea58158e3004154719272c1d2854b41e78bcd074e62273",
+        "primary_feature_value_db": 3.4048918448766665,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_005",
+        "sample_path": "samples/right_005.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 6,
+        "collection_order_index": 11,
+        "npz_sha256_hex": "15d7e4e16bd268583b10e83e7cf8e2fc7ef3d2659e2203a35b0341eec6beccbd",
+        "primary_feature_value_db": -3.3174418774799035,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_006",
+        "sample_path": "samples/left_006.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 6,
+        "collection_order_index": 12,
+        "npz_sha256_hex": "17c3469950acdb6d69d8b48e1e28aa6c6fcdc9636c8c126d16557be3716a2246",
+        "primary_feature_value_db": 3.783051527263103,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_006",
+        "sample_path": "samples/right_006.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 7,
+        "collection_order_index": 13,
+        "npz_sha256_hex": "a54bdfb16ea78c3de618488a9ee28df8e6d3e4174bc5231e0945979820bb2f4f",
+        "primary_feature_value_db": -1.048062768060853,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_007",
+        "sample_path": "samples/left_007.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 7,
+        "collection_order_index": 14,
+        "npz_sha256_hex": "26d6d533d134b36393d25ec630cd05db54727eb22c32b6efeb0ce35085f18734",
+        "primary_feature_value_db": 3.716424127087689,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_007",
+        "sample_path": "samples/right_007.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 8,
+        "collection_order_index": 15,
+        "npz_sha256_hex": "6ff9be2eb23ef65e762dadafe0ac091a3533e9df975afbb3a3ae4b95745cf6e9",
+        "primary_feature_value_db": -4.311996006787097,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_008",
+        "sample_path": "samples/left_008.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 8,
+        "collection_order_index": 16,
+        "npz_sha256_hex": "6993a3fc7c874beda230c176ecc94f4ec355ca12e4ce62b6174c5b162a8797a7",
+        "primary_feature_value_db": 5.721189185604562,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_008",
+        "sample_path": "samples/right_008.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 9,
+        "collection_order_index": 17,
+        "npz_sha256_hex": "111b5ebaba1f747e00a25543d508448e2c8b6987d2fc036eebd87c9019f7c07a",
+        "primary_feature_value_db": -0.8660058053883204,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_009",
+        "sample_path": "samples/left_009.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 9,
+        "collection_order_index": 18,
+        "npz_sha256_hex": "e49470a08ad7fbccab0bad4645056b5cee0d20f03f6a160392962b3a72f1df09",
+        "primary_feature_value_db": 2.3474473126139137,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_009",
+        "sample_path": "samples/right_009.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 10,
+        "collection_order_index": 19,
+        "npz_sha256_hex": "76989ea29fc4c48d18478f3b0b5b8d71fad5759bb6881b788fc7b157a3a66e1b",
+        "primary_feature_value_db": -2.5172978777597477,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_010",
+        "sample_path": "samples/left_010.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 10,
+        "collection_order_index": 20,
+        "npz_sha256_hex": "3f1fb7adb0b7f26ede0e639083de9d11ef06fb9c4704cd2f80ebf490bcc28667",
+        "primary_feature_value_db": 3.0993278117842937,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_010",
+        "sample_path": "samples/right_010.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 11,
+        "collection_order_index": 21,
+        "npz_sha256_hex": "d19339896813d2993b37746c8d44ad9e4e2413a66e08bf35eecb6dadcd692a6d",
+        "primary_feature_value_db": -1.9063986257599557,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_011",
+        "sample_path": "samples/left_011.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 11,
+        "collection_order_index": 22,
+        "npz_sha256_hex": "33b83c1ca6a77248eeacc215180d57829a8470655e9694e548b7a4cb3ad0befd",
+        "primary_feature_value_db": 3.599328853358725,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_011",
+        "sample_path": "samples/right_011.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 12,
+        "collection_order_index": 23,
+        "npz_sha256_hex": "9d640e2c1a64371a1a0257cd941be3090f59d37efa0e8db4692870bef9d7b780",
+        "primary_feature_value_db": -5.508743139517753,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_012",
+        "sample_path": "samples/left_012.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 12,
+        "collection_order_index": 24,
+        "npz_sha256_hex": "73f86bd29971c2686fa6ab2c8061e3dbf165d54f3bbad784484ca9b107481802",
+        "primary_feature_value_db": 3.7685310008114343,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_012",
+        "sample_path": "samples/right_012.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 13,
+        "collection_order_index": 25,
+        "npz_sha256_hex": "1d4b373bbdfa16721fcd7d26ff6ea2bc46e8ac3579cb71b50e2c442068f458ff",
+        "primary_feature_value_db": -0.9826491166552995,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_013",
+        "sample_path": "samples/left_013.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 13,
+        "collection_order_index": 26,
+        "npz_sha256_hex": "8403e2aea326b48279b46b31fc6ebb053137d93fb858c1befe5d8be676bb06ac",
+        "primary_feature_value_db": 2.384383359441384,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_013",
+        "sample_path": "samples/right_013.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 14,
+        "collection_order_index": 27,
+        "npz_sha256_hex": "1463fdd4480f30c7bca0a43164d6dc7317fd365417178355857bb809ba5fa89c",
+        "primary_feature_value_db": -4.1300649191659335,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_014",
+        "sample_path": "samples/left_014.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 14,
+        "collection_order_index": 28,
+        "npz_sha256_hex": "658db05a93400340bfcb96b386b28ea468cde9db356895a8cb15af156cac3fd4",
+        "primary_feature_value_db": 4.240922704594228,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_014",
+        "sample_path": "samples/right_014.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 15,
+        "collection_order_index": 29,
+        "npz_sha256_hex": "f761d516e2b77eb1a607c6fde2f18f5698657fbefa5bb7eca4d116a40c283b33",
+        "primary_feature_value_db": -3.2771360527733924,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_015",
+        "sample_path": "samples/left_015.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 15,
+        "collection_order_index": 30,
+        "npz_sha256_hex": "bb84f101be6e4b4ddf17f8ddc38452f5716673f2b463267a7e574a17d2abcf2a",
+        "primary_feature_value_db": 4.261850317441583,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_015",
+        "sample_path": "samples/right_015.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 16,
+        "collection_order_index": 31,
+        "npz_sha256_hex": "9a7af46cdccfc2b48df4ca8866663501e9893d2c434d151f8a8741428f110674",
+        "primary_feature_value_db": -4.26158421630015,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_016",
+        "sample_path": "samples/left_016.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 16,
+        "collection_order_index": 32,
+        "npz_sha256_hex": "62ef02294e66b6e86d7cb0197133e8a1d7be4e6e258550b74da3bc15493e36cc",
+        "primary_feature_value_db": 3.0325131907425624,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_016",
+        "sample_path": "samples/right_016.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 17,
+        "collection_order_index": 33,
+        "npz_sha256_hex": "cc63bab1b101dc1fbad6fff3ed2f3cc0588679cdf84f410f3c8f9f67d60ab812",
+        "primary_feature_value_db": -0.2817663799282035,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_017",
+        "sample_path": "samples/left_017.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 17,
+        "collection_order_index": 34,
+        "npz_sha256_hex": "2179ee5921c0c8e18a445997fb00d15b0165b8a44e1054b22d71574acacf4cc7",
+        "primary_feature_value_db": 2.8507191181456464,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_017",
+        "sample_path": "samples/right_017.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 18,
+        "collection_order_index": 35,
+        "npz_sha256_hex": "84d073142bcbf308740f5954f1a7cf8c1ba66831f9ba3872bc1535834c2f725d",
+        "primary_feature_value_db": -2.9471386294885766,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_018",
+        "sample_path": "samples/left_018.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 18,
+        "collection_order_index": 36,
+        "npz_sha256_hex": "395f8687546f3f704e84a2a443785453b701c937369a5e66075d8451b9be97ad",
+        "primary_feature_value_db": 3.401478404634759,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_018",
+        "sample_path": "samples/right_018.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 19,
+        "collection_order_index": 37,
+        "npz_sha256_hex": "d3e81d7d14c6d296250c6b3f71ddce661cc661ee539cef74c14d8dca16b22dc2",
+        "primary_feature_value_db": -5.669502170074271,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_019",
+        "sample_path": "samples/left_019.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 19,
+        "collection_order_index": 38,
+        "npz_sha256_hex": "8aba881e55db0ca3ad8238d65e48cedc674012c9485719c6c342ea5e7b9d13ae",
+        "primary_feature_value_db": 1.4138671941098848,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_019",
+        "sample_path": "samples/right_019.npz",
+        "zone": "RIGHT"
+      },
+      {
+        "accepted_sample_number": 20,
+        "collection_order_index": 39,
+        "npz_sha256_hex": "c78e855fb2f64671661f736d681a911e5b4b4d965fea143c11347058bea30840",
+        "primary_feature_value_db": -5.634397559643121,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-left_020",
+        "sample_path": "samples/left_020.npz",
+        "zone": "LEFT"
+      },
+      {
+        "accepted_sample_number": 20,
+        "collection_order_index": 40,
+        "npz_sha256_hex": "6d5d81fa2030d79bec982af3c7e3980ea0ec5bb345d7983383d309ace15c9db4",
+        "primary_feature_value_db": 1.2034355994496975,
+        "sample_id": "20260827T171528.349289Z-c0e2caa7-right_020",
+        "sample_path": "samples/right_020.npz",
+        "zone": "RIGHT"
+      }
+    ],
+    "training_membership_order": "manifest collection_order_index (round-robin LEFT/RIGHT order)"
+  }
+}

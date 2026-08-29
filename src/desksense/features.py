@@ -9,6 +9,11 @@ import numpy as np
 
 
 PRIMARY_FEATURE_NAME = "peak_ratio_db_ch2_minus_ch1"
+PRIMARY_FEATURE_UNITS = "dB"
+PRIMARY_FEATURE_DEFINITION_VERSION = 1
+PRIMARY_FEATURE_DEFINITION = (
+    "20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)"
+)
 DESCRIPTIVE_FEATURE_NAMES = (
     "rms_ratio_db_ch2_minus_ch1",
     PRIMARY_FEATURE_NAME,
@@ -162,11 +167,9 @@ def feature_definitions() -> dict[str, dict[str, Any]]:
             "units": "ratio",
         },
         PRIMARY_FEATURE_NAME: {
-            "definition": (
-                "20 * log10(channel_2_peak_absolute / "
-                "channel_1_peak_absolute)"
-            ),
-            "units": "dB",
+            "definition": PRIMARY_FEATURE_DEFINITION,
+            "definition_version": PRIMARY_FEATURE_DEFINITION_VERSION,
+            "units": PRIMARY_FEATURE_UNITS,
             "role": "predeclared primary simple LEFT/RIGHT baseline feature",
         },
         "zero_lag_pearson_correlation": {

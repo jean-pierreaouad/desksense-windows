@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path, PurePosixPath
 from typing import Any
 from zipfile import BadZipFile
@@ -23,6 +25,19 @@ from desksense.features import (
 
 ANALYSIS_SCHEMA_VERSION = 1
 SUPPORTED_DATASET_SCHEMA_VERSION = 1
+SOURCE_DATASET_FINGERPRINT_SCHEMA_VERSION = 1
+SOURCE_DATASET_FINGERPRINT_SCHEME = (
+    "desksense_phase2a_referenced_files_sha256_v1"
+)
+SOURCE_DATASET_FINGERPRINT_ORDER = (
+    "session.json, manifest.jsonl, then accepted NPZ artifacts in manifest order"
+)
+SOURCE_DATASET_FINGERPRINT_FRAMING = (
+    "ASCII domain prefix 'DeskSense Phase 2A source dataset fingerprint\\0"
+    "version 1\\0'; then for each component the ASCII marker 'component\\0' "
+    "followed by its UTF-8 role, UTF-8 portable path, and raw file payload, "
+    "each prefixed by an unsigned 64-bit big-endian byte length"
+)
 EXPECTED_DATASET_KIND = "guided_labeled_multichannel_tap_dataset"
 EXPECTED_ZONES = ("LEFT", "RIGHT")
 HOLDOUT_TRAINING_END = 15
@@ -64,6 +79,7 @@ class LoadedDataset:
     samples: tuple[LoadedSample, ...]
     rejected_attempt_count: int
     integrity_validation: dict[str, Any]
+    source_fingerprint: dict[str, Any]
 
 
 def load_dataset_session(session_path: Path) -> LoadedDataset:
@@ -89,9 +105,31 @@ def load_dataset_session(session_path: Path) -> LoadedDataset:
             f"Missing samples directory: {samples_directory}"
         )
 
-    session = _load_json_file(session_file, "session.json")
+    fingerprint_hasher = hashlib.sha256()
+    fingerprint_hasher.update(
+        b"DeskSense Phase 2A source dataset fingerprint\x00version 1\x00"
+    )
+    fingerprint_components: list[dict[str, Any]] = []
+
+    session_bytes = _read_source_file_bytes(session_file, "session.json")
+    _add_fingerprint_component(
+        fingerprint_hasher,
+        fingerprint_components,
+        role="session_metadata",
+        portable_path="session.json",
+        content=session_bytes,
+    )
+    session = _load_json_bytes(session_bytes, "session.json")
     _validate_session_metadata(session)
-    records = _load_manifest(manifest_file)
+    manifest_bytes = _read_source_file_bytes(manifest_file, "manifest.jsonl")
+    _add_fingerprint_component(
+        fingerprint_hasher,
+        fingerprint_components,
+        role="accepted_manifest",
+        portable_path="manifest.jsonl",
+        content=manifest_bytes,
+    )
+    records = _load_manifest_bytes(manifest_bytes)
     normalized_paths = _validate_manifest_records(records, session)
 
     loaded_samples: list[LoadedSample] = []
@@ -101,11 +139,22 @@ def load_dataset_session(session_path: Path) -> LoadedDataset:
             directory, samples_directory, normalized_path
         )
         referenced_paths.add(sample_path)
+        sample_bytes = _read_source_file_bytes(
+            sample_path, f"accepted sample {record['sample_id']}"
+        )
+        _add_fingerprint_component(
+            fingerprint_hasher,
+            fingerprint_components,
+            role="accepted_sample_artifact",
+            portable_path=normalized_path.as_posix(),
+            content=sample_bytes,
+        )
         loaded_samples.append(
             _load_sample_artifact(
                 sample_path,
                 record,
                 session,
+                source_bytes=sample_bytes,
             )
         )
 
@@ -149,13 +198,36 @@ def load_dataset_session(session_path: Path) -> LoadedDataset:
             "rejected-attempt metadata excluded from labeled samples",
         ],
     }
+    source_fingerprint = {
+        "schema_version": SOURCE_DATASET_FINGERPRINT_SCHEMA_VERSION,
+        "algorithm": "SHA-256",
+        "scheme": SOURCE_DATASET_FINGERPRINT_SCHEME,
+        "logical_order": SOURCE_DATASET_FINGERPRINT_ORDER,
+        "framing": SOURCE_DATASET_FINGERPRINT_FRAMING,
+        "digest_hex": fingerprint_hasher.hexdigest(),
+        "components": fingerprint_components,
+        "rejected_attempts_included": False,
+    }
     return LoadedDataset(
         session_path=directory,
         session_metadata=session,
         samples=tuple(loaded_samples),
         rejected_attempt_count=rejected_attempt_count,
         integrity_validation=integrity,
+        source_fingerprint=source_fingerprint,
     )
+
+
+def source_dataset_fingerprint(dataset: LoadedDataset) -> dict[str, Any]:
+    """Return the exact-byte fingerprint computed during dataset validation.
+
+    The aggregate digest is independent of absolute paths and filesystem
+    traversal order. It covers session.json, manifest.jsonl, and every accepted
+    NPZ referenced by the manifest in logical collection order. Rejected-attempt
+    metadata is deliberately outside the model-input fingerprint.
+    """
+
+    return _json_copy(dataset.source_fingerprint)
 
 
 def extract_dataset_features(
@@ -809,11 +881,13 @@ def _validate_session_metadata(session: dict[str, Any]) -> None:
     )
 
 
-def _load_manifest(path: Path) -> list[dict[str, Any]]:
+def _load_manifest_bytes(content: bytes) -> list[dict[str, Any]]:
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError) as error:
-        raise DatasetIntegrityError(f"Could not read manifest.jsonl: {error}") from error
+        lines = content.decode("utf-8").splitlines()
+    except UnicodeError as error:
+        raise DatasetIntegrityError(
+            f"Could not decode manifest.jsonl as UTF-8: {error}"
+        ) from error
     if not lines:
         raise DatasetIntegrityError("manifest.jsonl contains no accepted samples.")
     records: list[dict[str, Any]] = []
@@ -956,10 +1030,12 @@ def _load_sample_artifact(
     path: Path,
     record: dict[str, Any],
     session: Mapping[str, Any],
+    *,
+    source_bytes: bytes,
 ) -> LoadedSample:
     context = f"sample {record['sample_id']} ({path})"
     try:
-        with np.load(path, allow_pickle=False) as archive:
+        with np.load(BytesIO(source_bytes), allow_pickle=False) as archive:
             for member in _REQUIRED_NPZ_MEMBERS:
                 if archive.files.count(member) != 1:
                     raise DatasetIntegrityError(
@@ -1356,12 +1432,45 @@ def _validate_report_payload(value: Any, *, path: str = "report") -> None:
         raise ValueError(f"{path} contains a non-finite float.")
 
 
-def _load_json_file(path: Path, label: str) -> dict[str, Any]:
+def _read_source_file_bytes(path: Path, label: str) -> bytes:
     try:
-        content = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
+        return path.read_bytes()
+    except OSError as error:
         raise DatasetIntegrityError(f"Could not read {label}: {error}") from error
-    return _load_json_text(content, label)
+
+
+def _add_fingerprint_component(
+    hasher: Any,
+    components: list[dict[str, Any]],
+    *,
+    role: str,
+    portable_path: str,
+    content: bytes,
+) -> None:
+    role_bytes = role.encode("utf-8")
+    path_bytes = portable_path.encode("utf-8")
+    hasher.update(b"component\x00")
+    for value in (role_bytes, path_bytes, content):
+        hasher.update(len(value).to_bytes(8, byteorder="big", signed=False))
+        hasher.update(value)
+    components.append(
+        {
+            "role": role,
+            "path": portable_path,
+            "byte_size": len(content),
+            "sha256_hex": hashlib.sha256(content).hexdigest(),
+        }
+    )
+
+
+def _load_json_bytes(content: bytes, label: str) -> dict[str, Any]:
+    try:
+        decoded = content.decode("utf-8")
+    except UnicodeError as error:
+        raise DatasetIntegrityError(
+            f"Could not decode {label} as UTF-8: {error}"
+        ) from error
+    return _load_json_text(decoded, label)
 
 
 def _load_json_text(content: str, label: str) -> dict[str, Any]:

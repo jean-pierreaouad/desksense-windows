@@ -458,3 +458,288 @@ def test_invalid_dataset_analysis_path_fails_without_audio_backend(
     assert exit_code == 1
     assert "Dataset analysis failed" in captured.err
     assert "does not exist" in captured.err
+
+
+def test_freeze_baseline_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--freeze-baseline",
+            "datasets/development-session",
+            "--interaction-context",
+            "hand-location-confounded",
+            "--save-baseline",
+            "baselines/lenovo-left-right-v1.json",
+        ]
+    )
+
+    assert args.freeze_baseline == Path("datasets/development-session")
+    assert args.interaction_context == "hand-location-confounded"
+    assert args.save_baseline == Path("baselines/lenovo-left-right-v1.json")
+    assert args.evaluate_frozen_baseline is None
+    assert args.baseline is None
+
+
+def test_external_evaluation_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--evaluate-frozen-baseline",
+            "datasets/external-session",
+            "--baseline",
+            "baselines/lenovo-left-right-v1.json",
+            "--interaction-context",
+            "same-hand",
+            "--save-report",
+            "reports/phase2c-external.json",
+        ]
+    )
+
+    assert args.evaluate_frozen_baseline == Path("datasets/external-session")
+    assert args.baseline == Path("baselines/lenovo-left-right-v1.json")
+    assert args.interaction_context == "same-hand"
+    assert args.save_report == Path("reports/phase2c-external.json")
+    assert args.freeze_baseline is None
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--freeze-baseline", "datasets/dev"],
+        [
+            "--freeze-baseline",
+            "datasets/dev",
+            "--interaction-context",
+            "hand-location-confounded",
+        ],
+        [
+            "--freeze-baseline",
+            "datasets/dev",
+            "--interaction-context",
+            "hand-location-confounded",
+            "--save-baseline",
+            "baseline.json",
+            "--save-report",
+            "report.json",
+        ],
+        ["--evaluate-frozen-baseline", "datasets/external"],
+        [
+            "--evaluate-frozen-baseline",
+            "datasets/external",
+            "--interaction-context",
+            "same-hand",
+        ],
+        ["--save-baseline", "baseline.json"],
+        ["--baseline", "baseline.json"],
+    ],
+)
+def test_phase2c_required_and_mode_specific_arguments(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(arguments)
+
+
+@pytest.mark.parametrize(
+    "other_mode",
+    [
+        ["--record"],
+        ["--characterize"],
+        ["--collect-dataset", "--device", "18"],
+        ["--analyze-dataset", "datasets/analysis"],
+        ["--evaluate-frozen-baseline", "datasets/external"],
+    ],
+)
+def test_freeze_mode_is_mutually_exclusive_with_every_other_mode(
+    other_mode: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(
+            ["--freeze-baseline", "datasets/dev", *other_mode]
+        )
+
+
+@pytest.mark.parametrize(
+    "mode",
+    ["--freeze-baseline", "--evaluate-frozen-baseline"],
+)
+@pytest.mark.parametrize(
+    "extra_arguments",
+    [
+        ["--device", "18"],
+        ["--samples-per-zone", "20"],
+        ["--dataset-root", "datasets"],
+    ],
+)
+def test_phase2c_offline_modes_reject_hardware_collection_options(
+    mode: str, extra_arguments: list[str]
+) -> None:
+    arguments = [
+        mode,
+        "datasets/session",
+        "--interaction-context",
+        "same-hand",
+        *extra_arguments,
+    ]
+    arguments.extend(
+        ["--save-baseline", "baseline.json"]
+        if mode == "--freeze-baseline"
+        else ["--baseline", "baseline.json"]
+    )
+    with pytest.raises(SystemExit):
+        cli.main(arguments)
+
+
+def test_freeze_cli_never_loads_audio_backend(monkeypatch, tmp_path, capsys) -> None:
+    source = tmp_path / "datasets" / "development"
+    destination = tmp_path / "baselines" / "baseline.json"
+    artifact = {"artifact_type": "synthetic"}
+    calls: list[object] = []
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("baseline freezing must not load sounddevice"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "create_frozen_baseline",
+        lambda path, *, interaction_context: (
+            calls.append((path, interaction_context)) or artifact
+        ),
+    )
+    monkeypatch.setattr(
+        cli, "format_frozen_baseline_summary", lambda _artifact: "frozen summary"
+    )
+
+    def fake_write(received, path, *, source_session_path):
+        calls.append((received, path, source_session_path))
+        return path.resolve()
+
+    monkeypatch.setattr(cli, "write_frozen_baseline", fake_write)
+
+    exit_code = cli.main(
+        [
+            "--freeze-baseline",
+            str(source),
+            "--interaction-context",
+            "hand-location-confounded",
+            "--save-baseline",
+            str(destination),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "frozen summary" in captured.out
+    assert calls == [
+        (source, "hand-location-confounded"),
+        (artifact, destination, source),
+    ]
+
+
+def test_external_evaluation_cli_delegates_without_loading_audio_backend(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    external = tmp_path / "datasets" / "external"
+    baseline = tmp_path / "baselines" / "baseline.json"
+    destination = tmp_path / "reports" / "external.json"
+    report = {"generated_at_utc": "2026-08-29T12:34:56+00:00"}
+    calls: list[object] = []
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("external evaluation must not load sounddevice"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "evaluate_frozen_baseline",
+        lambda session, model, *, interaction_context: (
+            calls.append((session, model, interaction_context)) or report
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "format_external_evaluation_summary",
+        lambda _report: "external summary",
+    )
+
+    def fake_write(received, path, *, external_session_path, baseline_path):
+        calls.append(
+            (received, path, external_session_path, baseline_path)
+        )
+        return path.resolve()
+
+    monkeypatch.setattr(cli, "write_external_evaluation_report", fake_write)
+
+    exit_code = cli.main(
+        [
+            "--evaluate-frozen-baseline",
+            str(external),
+            "--baseline",
+            str(baseline),
+            "--interaction-context",
+            "same-hand",
+            "--save-report",
+            str(destination),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "external summary" in captured.out
+    assert calls == [
+        (external, baseline, "same-hand"),
+        (report, destination, external, baseline),
+    ]
+
+
+def test_freeze_missing_session_fails_clearly_without_audio_backend(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("baseline freezing must not load sounddevice"),
+    )
+
+    exit_code = cli.main(
+        [
+            "--freeze-baseline",
+            str(tmp_path / "missing-development"),
+            "--interaction-context",
+            "hand-location-confounded",
+            "--save-baseline",
+            str(tmp_path / "baseline.json"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Frozen baseline creation failed" in captured.err
+    assert "does not exist" in captured.err
+
+
+def test_external_missing_baseline_fails_clearly_without_audio_backend(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("external evaluation must not load sounddevice"),
+    )
+
+    exit_code = cli.main(
+        [
+            "--evaluate-frozen-baseline",
+            str(tmp_path / "missing-external"),
+            "--baseline",
+            str(tmp_path / "missing-baseline.json"),
+            "--interaction-context",
+            "same-hand",
+            "--save-report",
+            str(tmp_path / "report.json"),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "External evaluation failed" in captured.err
+    assert "does not exist" in captured.err

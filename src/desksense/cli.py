@@ -29,6 +29,15 @@ from desksense.diagnostics import (
     describe_audio_error,
     write_json_report,
 )
+from desksense.frozen_baseline import (
+    FrozenBaselineError,
+    create_frozen_baseline,
+    evaluate_frozen_baseline,
+    format_external_evaluation_summary,
+    format_frozen_baseline_summary,
+    write_external_evaluation_report,
+    write_frozen_baseline,
+)
 
 _AUTO_REPORT = object()
 
@@ -38,7 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="desksense-diagnose",
         description=(
             "Inspect Windows audio inputs, characterize microphone channels, or "
-            "collect or analyze a local labeled tap dataset."
+            "collect, analyze, freeze, or externally evaluate a local labeled "
+            "tap dataset."
         ),
     )
     parser.add_argument(
@@ -48,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "input device index to select (required for --collect-dataset; "
             "diagnostic/characterization modes otherwise use the system default; "
-            "not used by offline analysis)"
+            "not used by offline workflows)"
         ),
     )
     capture_mode = parser.add_mutually_exclusive_group()
@@ -86,6 +96,24 @@ def build_parser() -> argparse.ArgumentParser:
             "analysis report is always written"
         ),
     )
+    capture_mode.add_argument(
+        "--freeze-baseline",
+        type=Path,
+        metavar="DEVELOPMENT_SESSION",
+        help=(
+            "fit the fixed LEFT/RIGHT midpoint baseline from every accepted "
+            "sample in one validated development session; entirely offline"
+        ),
+    )
+    capture_mode.add_argument(
+        "--evaluate-frozen-baseline",
+        type=Path,
+        metavar="EXTERNAL_SESSION",
+        help=(
+            "apply an existing frozen baseline unchanged to every accepted "
+            "sample in a different validated session; entirely offline"
+        ),
+    )
     parser.add_argument(
         "--samples-per-zone",
         type=_positive_integer,
@@ -109,10 +137,25 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CONTEXT",
         help=(
-            "required with --analyze-dataset because tapping-hand context is not "
-            "stored in Phase 2A artifacts; choose hand-location-confounded or "
-            "same-hand"
+            "required with offline dataset analysis, baseline freezing, and "
+            "external evaluation because tapping-hand context is not stored in "
+            "Phase 2A artifacts"
         ),
+    )
+    parser.add_argument(
+        "--save-baseline",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "required with --freeze-baseline; exclusively write the compact "
+            "tracked-eligible frozen JSON artifact"
+        ),
+    )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        metavar="PATH",
+        help="required with --evaluate-frozen-baseline; baseline is never modified",
     )
     parser.add_argument(
         "--save-report",
@@ -122,7 +165,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "save a JSON report; omit PATH to create a timestamped file under "
-            "reports/ (dataset analysis does this even when the option is omitted)"
+            "reports/ (dataset analysis and external evaluation do this even "
+            "when the option is omitted)"
         ),
     )
     return parser
@@ -131,6 +175,49 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.save_baseline is not None and args.freeze_baseline is None:
+        parser.error("--save-baseline requires --freeze-baseline SESSION")
+    if args.baseline is not None and args.evaluate_frozen_baseline is None:
+        parser.error("--baseline requires --evaluate-frozen-baseline SESSION")
+
+    if args.freeze_baseline is not None:
+        if args.device is not None:
+            parser.error("--device cannot be combined with --freeze-baseline")
+        if args.samples_per_zone is not None or args.dataset_root is not None:
+            parser.error(
+                "--samples-per-zone and --dataset-root cannot be combined with "
+                "--freeze-baseline"
+            )
+        if args.interaction_context is None:
+            parser.error(
+                "--freeze-baseline requires --interaction-context "
+                "{hand-location-confounded,same-hand}"
+            )
+        if args.save_baseline is None:
+            parser.error("--freeze-baseline requires --save-baseline PATH")
+        if args.save_report is not None:
+            parser.error("--save-report cannot be combined with --freeze-baseline")
+        return _run_freeze_baseline_cli(args)
+
+    if args.evaluate_frozen_baseline is not None:
+        if args.device is not None:
+            parser.error(
+                "--device cannot be combined with --evaluate-frozen-baseline"
+            )
+        if args.samples_per_zone is not None or args.dataset_root is not None:
+            parser.error(
+                "--samples-per-zone and --dataset-root cannot be combined with "
+                "--evaluate-frozen-baseline"
+            )
+        if args.interaction_context is None:
+            parser.error(
+                "--evaluate-frozen-baseline requires --interaction-context "
+                "{hand-location-confounded,same-hand}"
+            )
+        if args.baseline is None:
+            parser.error("--evaluate-frozen-baseline requires --baseline PATH")
+        return _run_external_evaluation_cli(args)
 
     if args.analyze_dataset is not None:
         if args.device is not None:
@@ -148,7 +235,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_dataset_analysis_cli(args)
 
     if args.interaction_context is not None:
-        parser.error("--interaction-context requires --analyze-dataset SESSION")
+        parser.error(
+            "--interaction-context requires an offline dataset analysis, "
+            "freeze, or external-evaluation mode"
+        )
 
     if args.collect_dataset:
         if args.device is None:
@@ -217,6 +307,66 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"\nJSON report saved to: {saved_path}")
 
     return exit_code
+
+
+def _run_freeze_baseline_cli(args: argparse.Namespace) -> int:
+    """Fit and persist a Phase 2C baseline without loading audio hardware."""
+
+    try:
+        artifact = create_frozen_baseline(
+            args.freeze_baseline,
+            interaction_context=args.interaction_context,
+        )
+        saved_path = write_frozen_baseline(
+            artifact,
+            args.save_baseline,
+            source_session_path=args.freeze_baseline,
+        )
+    except KeyboardInterrupt:
+        print("\nDeskSense baseline freezing interrupted.", file=sys.stderr)
+        return 130
+    except (FrozenBaselineError, OSError, TypeError, ValueError) as error:
+        print(f"Frozen baseline creation failed: {error}", file=sys.stderr)
+        return 1
+
+    print(format_frozen_baseline_summary(artifact))
+    print(f"\nFrozen baseline saved to: {saved_path}")
+    return 0
+
+
+def _run_external_evaluation_cli(args: argparse.Namespace) -> int:
+    """Evaluate a frozen model offline without fitting or loading audio."""
+
+    try:
+        report = evaluate_frozen_baseline(
+            args.evaluate_frozen_baseline,
+            args.baseline,
+            interaction_context=args.interaction_context,
+        )
+    except KeyboardInterrupt:
+        print("\nDeskSense external evaluation interrupted.", file=sys.stderr)
+        return 130
+    except (FrozenBaselineError, OSError, TypeError, ValueError) as error:
+        print(f"External evaluation failed: {error}", file=sys.stderr)
+        return 1
+
+    print(format_external_evaluation_summary(report))
+    requested_path = _AUTO_REPORT if args.save_report is None else args.save_report
+    try:
+        report_path = _external_evaluation_report_path(
+            requested_path, report["generated_at_utc"]
+        )
+        saved_path = write_external_evaluation_report(
+            report,
+            report_path,
+            external_session_path=args.evaluate_frozen_baseline,
+            baseline_path=args.baseline,
+        )
+    except (FrozenBaselineError, OSError, TypeError, ValueError) as error:
+        print(f"Could not save JSON external report: {error}", file=sys.stderr)
+        return 1
+    print(f"\nJSON external evaluation report saved to: {saved_path}")
+    return 0
 
 
 def _run_dataset_analysis_cli(args: argparse.Namespace) -> int:
@@ -484,6 +634,19 @@ def _analysis_report_path(requested: object, generated_at_utc: str) -> Path:
         return Path("reports") / f"desksense-dataset-analysis-{timestamp}.json"
     if not isinstance(requested, Path):
         raise TypeError("Analysis report path must be a filesystem path.")
+    return requested
+
+
+def _external_evaluation_report_path(
+    requested: object, generated_at_utc: str
+) -> Path:
+    if requested is _AUTO_REPORT:
+        timestamp = datetime.fromisoformat(generated_at_utc).strftime(
+            "%Y%m%dT%H%M%S.%fZ"
+        )
+        return Path("reports") / f"desksense-external-evaluation-{timestamp}.json"
+    if not isinstance(requested, Path):
+        raise TypeError("External evaluation report path must be a filesystem path.")
     return requested
 
 

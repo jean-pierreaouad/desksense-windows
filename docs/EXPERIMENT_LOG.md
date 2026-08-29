@@ -863,6 +863,154 @@ final DeskSense accuracy results.
 - Report the future result separately as cross-session, same-hand external
   validation. No such outcome is claimed yet.
 
+## Experiment 11 — Phase 2C frozen development baseline
+
+**Purpose**
+
+Freeze the already selected simple LEFT/RIGHT midpoint model from the complete
+development session before collecting any external same-hand data. The goal
+was to make the future cross-session test auditable and prevent its feature,
+threshold, direction, or tie rule from being changed after external examples
+are observed.
+
+**Implementation verification before baseline generation**
+
+- Complete automated suite: 217 tests passed.
+- Focused Phase 2C tests: 63 passed, 28 deselected.
+- `pip check`, byte compilation, imports, CLI help, and
+  `git diff --check` passed.
+- Imports passed without sounddevice being imported.
+- `datasets/` and `reports/` were confirmed ignored; `baselines/` was confirmed
+  eligible for Git tracking.
+- No microphone hardware was accessed.
+
+**Source development session and evidence context**
+
+- Session ID: `20260827T171528.349289Z-c0e2caa7`.
+- Accepted samples: 20 LEFT, 20 RIGHT, 40 total.
+- All 40 accepted samples were used; no external samples were used.
+- Source interaction context: `hand-location-confounded`.
+- LEFT condition: left hand at the left location.
+- RIGHT condition: right hand at the right location.
+
+The source session therefore does not isolate location alone. It remains
+development evidence from one user, Lenovo laptop, desk, setup, and session.
+
+**Procedure**
+
+The offline freeze path loaded the source session through the existing strict
+dataset validator, extracted the predeclared primary feature from every
+accepted retained tap window, computed the LEFT and RIGHT arithmetic means,
+and stored their midpoint with the direction learned from those means. It did
+not access a microphone, modify the source dataset, search thresholds, select
+another feature, or use any external sample.
+
+The reproducible command corresponding to the reviewed artifact is:
+
+```powershell
+python -m desksense --freeze-baseline datasets\20260827T171528.349289Z-c0e2caa7 --interaction-context hand-location-confounded --save-baseline baselines\lenovo-left-right-v1.json
+```
+
+**Frozen artifact**
+
+- Path: `baselines/lenovo-left-right-v1.json`.
+- Artifact type: `desksense_frozen_left_right_midpoint_baseline`.
+- Baseline schema version: 1.
+- Primary feature: `peak_ratio_db_ch2_minus_ch1`.
+- Feature definition version: 1.
+- Feature definition:
+
+  ```text
+  20 * log10(channel_2_peak_absolute / channel_1_peak_absolute)
+  ```
+
+- Source window: complete retained `tap_window` array.
+- LEFT development mean: -3.1017978964848574 dB.
+- RIGHT development mean: +3.3576626135898806 dB.
+- Frozen midpoint threshold: +0.12793235855251162 dB.
+- Direction: LEFT below the threshold; RIGHT at or above it.
+- Tie rule: `feature_value >= threshold_db predicts higher_feature_zone`.
+
+The threshold was derived reproducibly from all 40 accepted development
+samples; it was not manually hard-coded. It must not be confused with the
+historical Phase 2B chronological-holdout threshold of approximately
++0.400322 dB, which was fitted only on accepted #1–#15 per class for that
+within-session experiment.
+
+**Source dataset fingerprint and evidence retention**
+
+The frozen source dataset SHA-256 is:
+
+```text
+6c4ac4c3881faecbab430d593b6b217e03f58a13ca07522b679ee3d19706516f
+```
+
+The exact-byte fingerprint contains 42 deterministic components:
+
+- One `session.json`.
+- One `manifest.jsonl`.
+- Forty accepted NPZ artifacts in manifest order.
+
+Rejected-attempt metadata is excluded. The baseline stores the fingerprint,
+training membership, compatibility information, derived model values, and
+evidence limitations, but no raw waveform arrays.
+
+**Development-data observation**
+
+All 20 development LEFT feature values were below the frozen threshold and all
+20 development RIGHT values were above it. Observed LEFT values ranged from
+approximately -5.6695 to -0.2818 dB; observed RIGHT values ranged from
+approximately +1.2034 to +5.7212 dB. LEFT #17 was closest to the threshold at
+approximately -0.281766 dB, about 0.409699 dB below it.
+
+These are training/development observations. They are not a new held-out
+result, external-validation result, or accuracy measurement.
+
+**Planned external protocol**
+
+The future external session must be a different session collected only after
+this implementation and frozen artifact are checkpointed. It should use the
+same Lenovo laptop, intended microphone endpoint/backend, sample rate and
+channel configuration, 200 ms retained tap-window design, and LEFT/RIGHT zone
+geometry. The same hand and finger must tap both zones so the previous
+tapping-hand variable is controlled more cleanly.
+
+External evaluation must apply unchanged:
+
+- `peak_ratio_db_ch2_minus_ch1`, definition version 1.
+- Threshold +0.12793235855251162 dB.
+- LEFT-below / RIGHT-at-or-above direction.
+- The stored greater-than-or-equal tie rule.
+
+It must not refit the threshold, relearn direction, select another feature,
+normalize from external class statistics, tune from external labels, or replace
+the frozen artifact after viewing the result. If performance is poor, the
+result must be preserved. Any model change makes that session development
+evidence, and another untouched future session is required for a new external
+test.
+
+**Interpretation and limitations**
+
+The generated and independently reviewed artifact freezes the intended
+development rule before external collection. This is a reproducibility and
+experimental-design checkpoint, not an external performance result. The
+source session remains hand/location-confounded, and no hand-independent,
+cross-session, cross-device, or final DeskSense accuracy has been established.
+
+No microphone capture was performed while creating or reviewing the baseline.
+No external dataset had been collected or evaluated at this checkpoint. The
+baseline contains no waveform data.
+
+**Resulting decision**
+
+- Treat Phase 2C implementation and real-baseline generation as complete.
+- Complete final validation and Checkpoint #5 commit/push containing the Phase
+  2C implementation, tests, README changes, checkpoint documentation, and
+  `baselines/lenovo-left-right-v1.json`.
+- Do not collect the same-hand external session until after that checkpoint.
+- Apply the frozen baseline unchanged to the future external session and report
+  the result separately, whether successful or unsuccessful.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
