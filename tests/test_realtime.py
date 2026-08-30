@@ -5,6 +5,7 @@ import queue
 import subprocess
 import sys
 import threading
+from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, replace
 from pathlib import Path
@@ -337,6 +338,178 @@ def _packet(
         dropped_callback_count_before=0,
         dropped_frame_count_before=0,
     )
+
+
+def _timing_fixture(
+    *,
+    packet: realtime.AudioChunkPacket | None = None,
+    result: DetectionResult | None = None,
+    spans: deque[realtime._TimingSpan] | None = None,
+    stream_time: Any = 82_341.0,
+    processing_start_ns: int = 1_010_000_000,
+    result_available_ns: int = 1_020_000_000,
+) -> dict[str, int | float | None]:
+    timing_packet = packet or replace(
+        _packet(),
+        input_buffer_adc_time_seconds=10.0,
+        callback_current_time_seconds=10.1,
+        callback_arrival_monotonic_ns=1_000_000_000,
+        enqueue_attempt_monotonic_ns=1_005_000_000,
+    )
+    timing_result = result or _candidate_result(onset=0, center=1_200)
+    timing_spans = spans
+    if timing_spans is None:
+        timing_spans = deque(
+            [
+                realtime._TimingSpan(
+                    stream_epoch=0,
+                    start_frame_index=0,
+                    end_frame_index_exclusive=2_400,
+                    input_buffer_adc_time_seconds=10.0,
+                )
+            ]
+        )
+    return realtime._result_timing(
+        timing_packet,
+        timing_result,
+        timing_spans,
+        SimpleNamespace(time=stream_time),
+        processing_start_ns=processing_start_ns,
+        result_available_ns=result_available_ns,
+    )
+
+
+def test_result_timing_composes_same_domain_durations_not_clock_origins() -> None:
+    timing = _timing_fixture(stream_time=82_341.0)
+
+    assert timing["estimated_onset_adc_time_seconds"] == pytest.approx(10.0)
+    assert timing["estimated_center_adc_time_seconds"] == pytest.approx(10.025)
+    assert timing["portaudio_onset_to_callback_seconds"] == pytest.approx(0.1)
+    assert timing["portaudio_center_to_callback_seconds"] == pytest.approx(0.075)
+    assert timing["python_callback_to_result_seconds"] == pytest.approx(0.02)
+    assert timing["approximate_onset_to_result_seconds"] == pytest.approx(0.12)
+    assert timing["approximate_center_to_result_seconds"] == pytest.approx(0.095)
+    assert timing["stream_time_at_result_seconds"] == pytest.approx(82_341.0)
+
+
+def test_huge_unrelated_stream_time_cannot_change_derived_timing() -> None:
+    ordinary = _timing_fixture(stream_time=10.2)
+    unrelated = _timing_fixture(stream_time=82_341_000_000.0)
+
+    for key in (
+        "approximate_onset_to_result_seconds",
+        "approximate_center_to_result_seconds",
+    ):
+        assert unrelated[key] == pytest.approx(ordinary[key])
+        assert unrelated[key] < 1.0
+
+
+def test_missing_callback_current_time_makes_derived_timing_unavailable() -> None:
+    packet = replace(
+        _packet(),
+        callback_current_time_seconds=None,
+        callback_arrival_monotonic_ns=1_000_000_000,
+    )
+    timing = _timing_fixture(packet=packet)
+
+    assert timing["approximate_onset_to_result_seconds"] is None
+    assert timing["approximate_center_to_result_seconds"] is None
+
+
+def test_missing_onset_mapping_does_not_hide_valid_center_mapping() -> None:
+    timing = _timing_fixture(result=_candidate_result(onset=3_000, center=1_200))
+
+    assert timing["estimated_onset_adc_time_seconds"] is None
+    assert timing["approximate_onset_to_result_seconds"] is None
+    assert timing["approximate_center_to_result_seconds"] == pytest.approx(0.095)
+
+
+def test_missing_center_mapping_makes_only_center_timing_unavailable() -> None:
+    result = replace(
+        _candidate_result(onset=0, center=1_200),
+        center_frame_index=None,
+    )
+    timing = _timing_fixture(result=result)
+
+    assert timing["approximate_onset_to_result_seconds"] == pytest.approx(0.12)
+    assert timing["estimated_center_adc_time_seconds"] is None
+    assert timing["approximate_center_to_result_seconds"] is None
+
+
+@pytest.mark.parametrize("callback_time", [float("nan"), float("inf")])
+def test_nonfinite_portaudio_callback_time_makes_derived_timing_unavailable(
+    callback_time: float,
+) -> None:
+    packet = replace(
+        _packet(),
+        callback_current_time_seconds=callback_time,
+        callback_arrival_monotonic_ns=1_000_000_000,
+    )
+    timing = _timing_fixture(packet=packet)
+
+    assert timing["approximate_onset_to_result_seconds"] is None
+    assert timing["approximate_center_to_result_seconds"] is None
+
+
+def test_callback_time_earlier_than_adc_estimates_fails_safely() -> None:
+    packet = replace(
+        _packet(),
+        callback_current_time_seconds=9.9,
+        callback_arrival_monotonic_ns=1_000_000_000,
+    )
+    timing = _timing_fixture(packet=packet)
+
+    assert timing["approximate_onset_to_result_seconds"] is None
+    assert timing["approximate_center_to_result_seconds"] is None
+
+
+def test_result_timestamp_before_callback_arrival_fails_safely() -> None:
+    timing = _timing_fixture(result_available_ns=999_000_000)
+
+    assert timing["python_callback_to_result_seconds"] is None
+    assert timing["approximate_onset_to_result_seconds"] is None
+    assert timing["approximate_center_to_result_seconds"] is None
+
+
+def test_queue_dwell_and_detector_lookahead_timing_are_unchanged() -> None:
+    timing = _timing_fixture()
+
+    assert timing["queue_dwell_seconds"] == pytest.approx(0.005)
+    assert timing["detector_latency_seconds"] == pytest.approx(0.1)
+
+
+def test_cli_omits_unavailable_approximate_timing() -> None:
+    from desksense.cli import format_live_sensing_event
+
+    timing = _timing_fixture(
+        packet=replace(
+            _packet(),
+            callback_current_time_seconds=None,
+            callback_arrival_monotonic_ns=1_000_000_000,
+            enqueue_attempt_monotonic_ns=1_005_000_000,
+        ),
+        stream_time=82_341.0,
+    )
+    event = realtime.LiveSensingEvent(
+        event_type="detection",
+        status="detected",
+        message="detected",
+        stream_epoch=0,
+        predicted_zone="RIGHT",
+        feature_value_db=2.0,
+        threshold_db=0.127932,
+        absolute_margin_db=1.872068,
+        onset_frame_index=100,
+        center_frame_index=120,
+        timing=timing,
+    )
+
+    rendered = format_live_sensing_event(event)
+
+    assert "onset-to-result" not in rendered
+    assert "82341" not in rendered
+    assert "queue dwell=5.00 ms" in rendered
+    assert "detector lookahead=100.00 ms" in rendered
 
 
 def test_realtime_transport_defaults_are_explicit_and_bounded() -> None:

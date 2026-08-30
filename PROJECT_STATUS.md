@@ -88,8 +88,18 @@ audio-discontinuity, queue-overflow, or PortAudio input-overflow event was
 observed, and Ctrl+C shutdown completed cleanly. This is a short positive-case
 pilot, not a real-time accuracy or robustness result. It also exposed an
 invalid approximately 82-million-ms onset-to-result timing value; that metric
-must be treated as unavailable until its cross-clock validation fails safely.
-No Windows action path exists yet.
+remains historical evidence of an instrumentation defect and is not a latency
+measurement.
+
+Phase 3A.3 now replaces the invalid absolute-clock subtraction with a
+clock-origin-safe composition of a PortAudio-domain duration and a Python
+monotonic-domain duration. Missing, non-finite, negative, or otherwise unusable
+components produce `None`/unavailable rather than a fabricated value. The
+complete suite passes 351 tests. This fix is implemented, fake-tested, and
+independently code-reviewed, but it has not yet been physically validated on
+the Lenovo. Phase 3A.2b and its first positive-case pilot are checkpointed; the
+timing fix is not yet checkpointed at the time of this status update. No
+Windows action path exists yet.
 
 ## Delivered milestones
 
@@ -638,8 +648,71 @@ The PortAudio stream-time value and ADC-time estimate were not safely
 comparable under the current calculation on this backend/run, although the
 exact root cause is not yet established. These raw observations must not be
 used in latency claims, clamped, or silently reinterpreted. Phase 3A.3 should
-make this metric fail safely to `unavailable` when clock compatibility or
-physical plausibility cannot be established.
+make this metric fail safely to `unavailable` when its inputs cannot be used.
+The software change below addresses that requirement; physical validation is
+still pending.
+
+### Phase 3A.3 — clock-origin-safe live timing instrumentation
+
+Status: **software fix implemented, fake-tested, and independently
+code-reviewed; physical Lenovo validation pending**
+
+The first physical pilot's impossible approximately 82-million-ms value came
+from a derived timing path conceptually equivalent to:
+
+```text
+stream.time - estimated_onset_adc_time
+```
+
+That historical observation remains valid evidence that the two absolute
+values were not safely comparable under the calculation used on that WDM-KS
+run. The exact backend or root cause is not claimed to be proven.
+
+The revised calculation composes durations whose endpoints stay within their
+respective clock domains. For onset timing:
+
+```text
+PortAudio onset-to-callback duration =
+    callback_current_time_seconds - estimated_onset_adc_time_seconds
+
+Python callback-to-result duration =
+    (result_available_monotonic_ns - callback_arrival_monotonic_ns) / 1e9
+
+approximate onset-to-result duration =
+    PortAudio onset-to-callback duration
+    + Python callback-to-result duration
+```
+
+Center-to-result uses the equivalent center ADC estimate. The implementation
+does not subtract a PortAudio absolute timestamp from a Python performance-
+counter timestamp. `stream.time` remains available as raw backend diagnostic
+evidence only and no longer drives either derived onset/center duration.
+
+If a required component is missing, non-finite, negative, or otherwise
+unusable, the corresponding derived value becomes `None`/unavailable. There is
+no clamping, inferred clock offset, calibration, or fallback that invents a
+latency. The result remains approximate instrumentation, not precise physical
+impact-to-terminal or user-perceived latency.
+
+The change is limited to timing instrumentation. It does not alter detector
+thresholds, startup learning, refractory timing, center search, candidate
+window, queue capacity or drop policy, callback design, frozen baseline,
+peak-ratio feature, LEFT/RIGHT rule, endpoint compatibility, or `InputStream`
+configuration.
+
+Verification:
+
+- Focused timing selection: 12 passed, 38 deselected.
+- Complete realtime suite: 50 passed.
+- Complete suite: 351 passed.
+- `pip check`, `compileall`, lazy import checks, and `git diff --check` passed.
+- No microphone hardware was accessed and `--sense` was not executed.
+
+The fix has not yet been validated on the physical Lenovo WDM-KS backend. The
+next evidence step is to checkpoint it and rerun a short controlled live pilot,
+confirming that approximate timing values are sane or fail safely to
+unavailable. Until then, the physical timing defect must not be described as
+resolved.
 
 ## Lenovo audio endpoints observed
 
@@ -893,8 +966,8 @@ larger dataset is available.
 
 The primary engineering question is now:
 
-> Can the reviewed pure detector and unchanged frozen LEFT/RIGHT rule be
-> remain reliable across controlled continuous Lenovo trials with background
+> Can the reviewed pure detector and unchanged frozen LEFT/RIGHT rule remain
+> reliable across controlled continuous Lenovo trials with background
 > activity, weak taps, non-tap sounds, and longer runs while timing evidence is
 > validated safely?
 
@@ -906,13 +979,15 @@ tested unless later evidence provides a reason.
 The collector, datasets, offline analysis, frozen baseline, external
 evaluation, pure streaming detector, label-free frozen decision path, injected
 live adapter, bounded callback transport, and terminal `--sense` path are
-implemented and checkpointed. The first physical pilot is complete. The next
-work is Phase 3A.3 live robustness and measurement: first guard the invalid
-cross-clock onset-to-result metric so it fails safely to `unavailable`, then
-run controlled live experiments covering background activity, false triggers,
-weak taps, causal alignment, queue behavior, misses, duplicate events,
-classification margins, and defensible latency evidence. The classifier should
-not be refitted merely in response to this first positive-case pilot.
+implemented and checkpointed. The first physical pilot is complete. The
+Phase 3A.3 timing guard is implemented and fake-tested but not physically
+validated. The immediate next steps are to checkpoint the timing fix and then
+rerun a short controlled Lenovo live pilot, confirming that the revised values
+are sane or fail safely to unavailable. Broader controlled experiments should
+then cover background activity, false triggers, weak taps, causal alignment,
+queue behavior, misses, duplicate events, classification margins, and
+defensible latency evidence. The classifier should not be refitted merely in
+response to the first positive-case pilot.
 
 Windows actions, hotkeys, and GUI behavior remain deferred until reliable
 real-time sensing is demonstrated.
@@ -943,8 +1018,8 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | External validation evidence gate | First scoped session complete; further untouched sessions required for modified models or broader claims |
 | 3A.1 — pure streaming detector and label-free inference | Complete, code-reviewed, and checkpointed |
 | 3A.2a — injected live audio adapter and terminal sensing | Complete, fake-tested, code-reviewed, and checkpointed in Checkpoint #8 |
-| 3A.2b — first physical live Lenovo sensing pilot | First short pilot complete: 7 intended taps, 7 detections, 7 matching intended-zone outputs; no broad robustness claim |
-| 3A.3 — live robustness and measurement | Next; first fix/guard invalid cross-clock timing, then run controlled robustness experiments |
+| 3A.2b — first physical live Lenovo sensing pilot | First short pilot complete and checkpointed: 7 intended taps, 7 detections, 7 matching intended-zone outputs; no broad robustness claim |
+| 3A.3 — live robustness and measurement | Timing instrumentation fix implemented, fake-tested, and code-reviewed; checkpoint and physical validation next |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
 | 6 — installer/UI if justified, benchmarks, demo, and release material | Not started |
@@ -986,5 +1061,9 @@ broader claims require additional users, sessions, desks, devices, and zones.
 - The first live pilot's approximately 82-million-ms onset-to-result values are
   retained only as evidence of a timing instrumentation defect and must not be
   treated as physical latency measurements.
+- Phase 3A.3 no longer uses raw `stream.time` to derive onset/center latency.
+  It retains that value only as diagnostic evidence and composes valid
+  within-domain durations, failing safely to unavailable when required timing
+  components cannot be used.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

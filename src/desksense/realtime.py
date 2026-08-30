@@ -941,6 +941,18 @@ def _result_timing(
         packet.callback_current_time_seconds,
         packet.input_buffer_adc_time_seconds,
     )
+    onset_to_callback = _nonnegative_difference(
+        packet.callback_current_time_seconds,
+        onset_adc,
+    )
+    center_to_callback = _nonnegative_difference(
+        packet.callback_current_time_seconds,
+        center_adc,
+    )
+    callback_to_result = _nonnegative_nanoseconds_duration(
+        result_available_ns,
+        packet.callback_arrival_monotonic_ns,
+    )
     return {
         "callback_arrival_monotonic_ns": (
             packet.callback_arrival_monotonic_ns
@@ -958,12 +970,19 @@ def _result_timing(
         "callback_buffer_age_seconds": callback_buffer_age,
         "estimated_onset_adc_time_seconds": onset_adc,
         "estimated_center_adc_time_seconds": center_adc,
+        "portaudio_onset_to_callback_seconds": onset_to_callback,
+        "portaudio_center_to_callback_seconds": center_to_callback,
+        "python_callback_to_result_seconds": callback_to_result,
+        # Raw backend evidence only. PortAudio stream.time is not assumed to
+        # share a usable absolute origin with inputBufferAdcTime on every host.
         "stream_time_at_result_seconds": stream_time,
-        "approximate_onset_to_result_seconds": _nonnegative_difference(
-            stream_time, onset_adc
+        "approximate_onset_to_result_seconds": _sum_durations(
+            onset_to_callback,
+            callback_to_result,
         ),
-        "approximate_center_to_result_seconds": _nonnegative_difference(
-            stream_time, center_adc
+        "approximate_center_to_result_seconds": _sum_durations(
+            center_to_callback,
+            callback_to_result,
         ),
         "detector_latency_seconds": _optional_finite(
             result.metrics.get("detector_latency_seconds")
@@ -1121,6 +1140,31 @@ def _nonnegative_difference(
     if not math.isfinite(difference) or difference < 0.0:
         return None
     return float(difference)
+
+
+def _nonnegative_nanoseconds_duration(
+    later_ns: int, earlier_ns: int
+) -> float | None:
+    if isinstance(later_ns, bool) or isinstance(earlier_ns, bool):
+        return None
+    try:
+        difference_ns = int(later_ns) - int(earlier_ns)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if difference_ns < 0:
+        return None
+    return float(difference_ns / 1_000_000_000.0)
+
+
+def _sum_durations(
+    first: float | None, second: float | None
+) -> float | None:
+    if first is None or second is None:
+        return None
+    total = first + second
+    if not math.isfinite(total) or total < 0.0:
+        return None
+    return float(total)
 
 
 def _ordered_unique(values: Any) -> tuple[str, ...]:

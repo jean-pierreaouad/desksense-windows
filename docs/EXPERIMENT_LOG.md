@@ -1711,6 +1711,117 @@ unobserved conditions.
 - Then perform controlled live robustness experiments rather than immediately
   refitting or recalibrating the frozen classifier.
 
+## Experiment 16 — Phase 3A.3 clock-origin-safe timing fix
+
+**Purpose**
+
+Correct the live timing instrumentation defect exposed by Experiment 15 before
+using approximate onset/center timing in further physical claims. This was an
+engineering/software change only. No microphone hardware was accessed and
+`--sense` was not executed.
+
+**Historical defect retained as evidence**
+
+The first physical WDM-KS pilot emitted values including:
+
+```text
+approx. onset-to-result=82331177.79 ms
+approx. onset-to-result=82331163.10 ms
+```
+
+Those physically impossible approximately 82-million-ms observations remain
+part of Experiment 15 and are not rewritten, clamped, or removed. They showed
+that the previous derived timing path was invalid on that physical run. The
+old calculation was conceptually equivalent to:
+
+```text
+stream.time - estimated_onset_adc_time
+```
+
+The WDM-KS result demonstrated that those absolute values could not safely be
+treated as directly comparable in that calculation. The exact backend/root
+cause has not been proven.
+
+**Revised duration composition**
+
+The implementation now constructs the estimate from two durations rather than
+mixing absolute clock origins:
+
+```text
+PortAudio onset-to-callback duration =
+    callback_current_time_seconds - estimated_onset_adc_time_seconds
+
+Python callback-to-result duration =
+    (result_available_monotonic_ns - callback_arrival_monotonic_ns) / 1e9
+
+approximate onset-to-result duration =
+    PortAudio onset-to-callback duration
+    + Python callback-to-result duration
+```
+
+Center-to-result uses the corresponding center ADC estimate. PortAudio
+`callback_current_time_seconds` and the ADC estimate are compared only within
+the PortAudio timing domain. Callback-arrival and result-availability values
+are compared only within the injected Python monotonic/performance-counter
+domain. No PortAudio absolute timestamp is directly subtracted from a Python
+absolute timestamp.
+
+`stream.time` remains recorded as raw backend diagnostic evidence. It no
+longer participates in the approximate onset-to-result or center-to-result
+calculation.
+
+**Fail-safe behavior**
+
+If any required timing component is missing, non-finite, negative, or otherwise
+unusable, the corresponding approximate metric becomes `None`/unavailable.
+The implementation does not clamp an implausible value, infer a clock offset,
+calibrate clock domains, guess missing timestamps, or fall back to another
+absolute-clock subtraction.
+
+The resulting metrics remain approximate instrumentation. They are not precise
+physical impact-to-terminal latency or user-perceived latency.
+
+**Unchanged behavior**
+
+The fix does not change detector thresholds, startup learning, refractory
+timing, center-search logic, the 200 ms candidate window, queue capacity or
+drop policy, callback responsibilities, frozen artifact, peak-ratio feature,
+LEFT/RIGHT decision rule, endpoint matching, or `InputStream` settings.
+
+**Hardware-independent verification**
+
+- Focused timing selection: 12 passed, 38 deselected.
+- Complete realtime suite: 50 passed.
+- Complete suite: 351 passed.
+- `pip check`: passed.
+- `compileall`: passed.
+- Lazy import check: passed.
+- `git diff --check`: passed.
+- No microphone hardware was accessed.
+- No `--sense` command was executed.
+
+Tests cover the expected composition of a 0.100-second PortAudio duration and
+a 0.020-second Python duration into a 0.120-second onset-to-result estimate,
+the equivalent center calculation, independent absolute clock origins, an
+unrelated huge `stream.time`, missing ADC/callback timing, non-finite values,
+negative/reversed durations, unchanged queue dwell and detector lookahead, and
+CLI omission when approximate timing is unavailable.
+
+**Limitations and resulting decision**
+
+This fake-tested change has not yet run against the physical Lenovo WDM-KS
+backend. It therefore does not establish that the defect is physically
+resolved or provide a new latency result.
+
+- Treat the timing instrumentation fix as implemented, fake-tested, and
+  independently code-reviewed.
+- Checkpoint the change before physical validation.
+- Rerun a short controlled Lenovo live pilot afterward.
+- Require the revised values to be physically sane or fail safely to
+  unavailable before using them as timing evidence.
+- Do not refit the classifier or change detector behavior as part of this
+  timing-only work.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
