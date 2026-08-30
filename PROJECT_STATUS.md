@@ -77,10 +77,19 @@ product-level accuracy.
 Phase 3A.1 is complete and checkpointed. Phase 3A.2a now provides an injected
 `sounddevice.InputStream` adapter, bounded callback-to-main-thread transport,
 and a terminal `--sense` command that applies the frozen baseline unchanged.
-The complete suite passes 340 tests. The implementation has been independently
-code-reviewed but is not yet checkpointed at the time of this status update.
-No physical microphone stream has been opened with `--sense`, and no Windows
-action path exists yet.
+The complete suite passes 340 tests, and the implementation is independently
+code-reviewed and checkpointed.
+
+The first physical Phase 3A.2b Lenovo WDM-KS pilot has now run through this
+continuous path. The detector armed, and all seven intended same-hand taps
+(three LEFT, four RIGHT) produced detections whose observed classifications
+matched the intended zones using the unchanged frozen baseline. No rejection,
+audio-discontinuity, queue-overflow, or PortAudio input-overflow event was
+observed, and Ctrl+C shutdown completed cleanly. This is a short positive-case
+pilot, not a real-time accuracy or robustness result. It also exposed an
+invalid approximately 82-million-ms onset-to-result timing value; that metric
+must be treated as unavailable until its cross-clock validation fails safely.
+No Windows action path exists yet.
 
 ## Delivered milestones
 
@@ -441,7 +450,7 @@ scheduling, and end-to-end latency.
 ### Phase 3A.2a — injected live audio adapter and terminal sensing
 
 Status: **implementation and fake validation complete; independently
-code-reviewed; physical Lenovo validation not started; Checkpoint #8 pending**
+code-reviewed and checkpointed in Checkpoint #8**
 
 Implemented live path:
 
@@ -551,12 +560,86 @@ startup/armed/relearning events, unexpected termination, Ctrl+C-style cleanup,
 startup failure, cleanup-error precedence, and absence of waveform/report
 persistence.
 
-This remains a software integration result. Actual Lenovo WDM-KS callback
-sizes and cadence, PortAudio status behavior, queue high-water and overflow
-frequency, detector noise-floor behavior, live onset thresholds, typing/speech
-and movement false triggers, weak-tap recall, causal center alignment, frozen
-feature behavior on causal windows, observed margins, and end-to-end latency
+At Phase 3A.2a completion these remained software-integration unknowns. The
+Phase 3A.2b pilot below supplies only initial positive-case observations;
+callback sizes/cadence, long-run PortAudio and queue behavior, detector
+noise-floor robustness, typing/speech/movement false triggers, weak-tap recall,
+causal center behavior across varied taps, and defensible end-to-end latency
 remain unmeasured.
+
+### Phase 3A.2b — first physical continuous live Lenovo pilot
+
+Status: **first short positive-case pilot completed; broad live robustness not
+established**
+
+On 2026-08-30, the first continuous `--sense` run opened the Lenovo's
+`Microphone Array 1 (Intel® Smart Sound Technology (Intel® SST) Microphone)`
+through Windows WDM-KS at the current device index 18. The stream used 48 kHz,
+two channels, and float32. Startup reported 47.00 ms stream latency, completed
+the 0.75-second noise-learning period, and reached `Armed (detector epoch 0)`.
+
+The command was:
+
+```powershell
+python -m desksense --sense --device 18 --baseline baselines\lenovo-left-right-v1.json
+```
+
+The established tap points were approximately 7–10 cm outside the respective
+laptop edges, toward the user/touchpad side rather than vertically centered
+beside the laptop: approximately lower/front-left and lower/front-right. The
+same wooden desk setup was used. Every tap used the fleshy pad of the right
+index finger with a moderate natural impact, so the same hand and finger were
+used at both locations.
+
+The intended sequence was three LEFT taps followed by four RIGHT taps. The
+fourth RIGHT was added because the user initially thought the preceding RIGHT
+tap had not appeared, although the terminal later showed that it had been
+detected. This is an early terminal-attention/UX observation and does not by
+itself establish excessive detection latency.
+
+Observed live results:
+
+| # | Intended/output zone | Feature (dB) | Margin (dB) | Onset | Center | Queue dwell (ms) | Detector lookahead (ms) |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | LEFT | -7.106153 | 7.234085 | 213540 | 214185 | 0.13 | 102.81 |
+| 2 | LEFT | -8.166028 | 8.293960 | 360098 | 360754 | 0.10 | 104.29 |
+| 3 | LEFT | -4.018297 | 4.146229 | 826800 | 827949 | 0.11 | 101.06 |
+| 4 | RIGHT | +2.447690 | 2.319758 | 1223811 | 1224472 | 0.11 | 100.17 |
+| 5 | RIGHT | +2.196171 | 2.068238 | 1494843 | 1495495 | 0.28 | 103.85 |
+| 6 | RIGHT | +1.736659 | 1.608726 | 1709463 | 1710152 | 0.05 | 101.83 |
+| 7 | RIGHT | +2.936812 | 2.808879 | 1842295 | 1842326 | 0.08 | 103.21 |
+
+All seven feature values fell comfortably on the expected side of the stored
+approximately +0.127932 dB threshold. The exact frozen threshold and direction
+remained unchanged: LEFT below the threshold and RIGHT at or above it. No
+refitting, normalization, calibration, or threshold change occurred, and these
+seven samples were not used as a new fitted dataset.
+
+The defensible result is: the first continuous live Lenovo WDM-KS pilot
+detected and correctly classified all seven intended same-hand LEFT/RIGHT taps
+using the previously frozen classifier without refitting or calibration. This
+means 3/3 intended LEFT taps were output as LEFT and 4/4 intended RIGHT taps
+were output as RIGHT in this short run. It is not a 100% localization-accuracy,
+production-accuracy, or generalization claim.
+
+No `Tap rejected`, `Audio discontinuity`, `queue_overflow`, or PortAudio
+`input_overflow` event was observed. The detector remained in epoch 0 and
+Ctrl+C shutdown completed cleanly. The 0.05–0.28 ms observed queue-dwell values
+provide no evidence of queue backlog in this short run, but do not establish
+that queue capacity eight is generally sufficient. The 100.17–104.29 ms
+detector-lookahead values describe algorithm timing and are not precise
+end-to-end user-perceived latency. No false-positive rate, callback size,
+callback cadence, weak-tap recall, or true end-to-end latency can be inferred.
+
+The run also exposed a timing instrumentation defect. Terminal values such as
+`approx. onset-to-result=82331177.79 ms` and
+`approx. onset-to-result=82331163.10 ms` are physically impossible and invalid.
+The PortAudio stream-time value and ADC-time estimate were not safely
+comparable under the current calculation on this backend/run, although the
+exact root cause is not yet established. These raw observations must not be
+used in latency claims, clamped, or silently reinterpreted. Phase 3A.3 should
+make this metric fail safely to `unavailable` when clock compatibility or
+physical plausibility cannot be established.
 
 ## Lenovo audio endpoints observed
 
@@ -811,9 +894,9 @@ larger dataset is available.
 The primary engineering question is now:
 
 > Can the reviewed pure detector and unchanged frozen LEFT/RIGHT rule be
-> validated on the real Lenovo WDM-KS stream and produce reliable live tap
-> events without callback gaps, duplicate triggers, or unacceptable false
-> positives and misses?
+> remain reliable across controlled continuous Lenovo trials with background
+> activity, weak taps, non-tap sounds, and longer runs while timing evidence is
+> validated safely?
 
 Broad Windows endpoint exploration is paused. WDM-KS device 18 at 48 kHz with
 two active, meaningfully different channels is the selected endpoint for the
@@ -823,10 +906,13 @@ tested unless later evidence provides a reason.
 The collector, datasets, offline analysis, frozen baseline, external
 evaluation, pure streaming detector, label-free frozen decision path, injected
 live adapter, bounded callback transport, and terminal `--sense` path are
-implemented. The immediate next action is Checkpoint #8. Phase 3A.2b should
-then perform the first physical Lenovo live-sensing pilot and measure callback
-behavior, queue pressure, detection behavior, causal alignment, false
-positives, misses, duplicate events, classification margins, and latency.
+implemented and checkpointed. The first physical pilot is complete. The next
+work is Phase 3A.3 live robustness and measurement: first guard the invalid
+cross-clock onset-to-result metric so it fails safely to `unavailable`, then
+run controlled live experiments covering background activity, false triggers,
+weak taps, causal alignment, queue behavior, misses, duplicate events,
+classification margins, and defensible latency evidence. The classifier should
+not be refitted merely in response to this first positive-case pilot.
 
 Windows actions, hotkeys, and GUI behavior remain deferred until reliable
 real-time sensing is demonstrated.
@@ -856,9 +942,9 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | 2C — frozen baseline and external evaluation | Complete; baseline precommitted; first same-hand cross-session result 39/40 |
 | External validation evidence gate | First scoped session complete; further untouched sessions required for modified models or broader claims |
 | 3A.1 — pure streaming detector and label-free inference | Complete, code-reviewed, and checkpointed |
-| 3A.2a — injected live audio adapter and terminal sensing | Implementation and fake validation complete; 340-test suite passing; Checkpoint #8 pending |
-| 3A.2b — first physical live Lenovo sensing pilot | Next; no physical `--sense` stream has been opened yet |
-| 3B — physical real-time reliability and rejection validation | Not started |
+| 3A.2a — injected live audio adapter and terminal sensing | Complete, fake-tested, code-reviewed, and checkpointed in Checkpoint #8 |
+| 3A.2b — first physical live Lenovo sensing pilot | First short pilot complete: 7 intended taps, 7 detections, 7 matching intended-zone outputs; no broad robustness claim |
+| 3A.3 — live robustness and measurement | Next; first fix/guard invalid cross-clock timing, then run controlled robustness experiments |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
 | 6 — installer/UI if justified, benchmarks, demo, and release material | Not started |
@@ -893,9 +979,12 @@ broader claims require additional users, sessions, desks, devices, and zones.
 - Diagnostic and characterization commands continue to omit raw audio from
   their JSON reports; waveform retention occurs only in explicit dataset
   collection sessions.
-- Phase 3A.2a keeps streaming history and candidate windows in memory only. It
-  adds an explicit live microphone mode but no waveform/report persistence or
-  action execution. The callback is supplied by PortAudio; detector and frozen
-  inference work remains on the main thread without an additional worker.
+- Phase 3A.2 keeps streaming history and candidate windows in memory only. The
+  physical pilot wrote no waveform or report and executed no action. The
+  callback is supplied by PortAudio; detector and frozen inference work remains
+  on the main thread without an additional worker.
+- The first live pilot's approximately 82-million-ms onset-to-result values are
+  retained only as evidence of a timing instrumentation defect and must not be
+  treated as physical latency measurements.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

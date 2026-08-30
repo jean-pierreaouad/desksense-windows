@@ -1558,6 +1558,159 @@ live sensing performance.
 - Continue deferring Windows actions, hotkeys, GUI behavior, calibration, and
   model changes until physical sensing behavior is measured.
 
+## Experiment 15 — first physical continuous live sensing pilot
+
+**Date**
+
+2026-08-30.
+
+**Purpose**
+
+Run the Checkpoint #8 continuous realtime pipeline against the actual Lenovo
+microphone for the first time and verify basic stream startup, detector arming,
+positive tap detection, unchanged frozen LEFT/RIGHT inference, transport
+behavior visible in the terminal, and clean shutdown. This was a short initial
+pilot, not a robustness, false-positive-rate, weak-tap-recall, or formal
+real-time accuracy experiment.
+
+**Physical setup**
+
+- Laptop: Lenovo Windows laptop.
+- Endpoint: `Microphone Array 1 (Intel® Smart Sound Technology (Intel® SST)
+  Microphone)`.
+- Current device index: 18.
+- Host API: Windows WDM-KS.
+- Runtime domain: 48 kHz, two channels, float32.
+- Desk: the same wooden desk setup used in the preceding experiments.
+- Baseline: `baselines/lenovo-left-right-v1.json`.
+- Frozen source session: `20260827T171528.349289Z-c0e2caa7`.
+- Frozen threshold: approximately +0.127932 dB; the exact stored value was
+  unchanged.
+- Decision rule: LEFT below the threshold; RIGHT at or above it.
+- No refitting, normalization, calibration, or threshold modification.
+
+The established tap points were approximately 7–10 cm outside the respective
+laptop edges. They were not centered vertically beside the laptop. Both were
+toward the user/touchpad side and away from the screen, approximately
+lower/front-left and lower/front-right relative to the laptop. These were the
+same established tap locations used in the relevant earlier experiments.
+
+Every tap used the right hand and the fleshy pad of the right index finger with
+a moderate natural impact. The same hand and finger therefore produced both
+LEFT and RIGHT taps.
+
+**Command and startup**
+
+```powershell
+python -m desksense --sense --device 18 --baseline baselines\lenovo-left-right-v1.json
+```
+
+Startup output confirmed the intended endpoint, Windows WDM-KS, 48 kHz, two
+channels, float32, a reported stream latency of 47.00 ms, and the 0.75-second
+initial noise-learning period. The detector armed successfully in its original
+continuous epoch:
+
+```text
+Armed (detector epoch 0).
+```
+
+**Procedure**
+
+The intended physical sequence was:
+
+1. LEFT
+2. LEFT
+3. LEFT
+4. RIGHT
+5. RIGHT
+6. RIGHT
+7. RIGHT
+
+The seventh tap was an extra RIGHT tap. The user added it because they initially
+thought the preceding RIGHT tap had not been detected; later inspection of the
+terminal showed that the preceding tap had in fact produced a detection. This
+is an early UX/terminal-attention observation, not by itself evidence that
+detection latency was excessive.
+
+**Observed live events**
+
+| # | Intended zone | Output zone | Feature (dB) | Margin (dB) | Onset | Center | Queue dwell (ms) | Detector lookahead (ms) |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | LEFT | LEFT | -7.106153 | 7.234085 | 213540 | 214185 | 0.13 | 102.81 |
+| 2 | LEFT | LEFT | -8.166028 | 8.293960 | 360098 | 360754 | 0.10 | 104.29 |
+| 3 | LEFT | LEFT | -4.018297 | 4.146229 | 826800 | 827949 | 0.11 | 101.06 |
+| 4 | RIGHT | RIGHT | +2.447690 | 2.319758 | 1223811 | 1224472 | 0.11 | 100.17 |
+| 5 | RIGHT | RIGHT | +2.196171 | 2.068238 | 1494843 | 1495495 | 0.28 | 103.85 |
+| 6 | RIGHT | RIGHT | +1.736659 | 1.608726 | 1709463 | 1710152 | 0.05 | 101.83 |
+| 7 | RIGHT | RIGHT | +2.936812 | 2.808879 | 1842295 | 1842326 | 0.08 | 103.21 |
+
+All seven intended taps produced live detections. The three intended LEFT taps
+were output as LEFT, and the four intended RIGHT taps were output as RIGHT. All
+observed feature values fell comfortably on the expected side of the unchanged
+frozen threshold. The seven events were not used to fit a new threshold or
+replace the frozen artifact.
+
+No `Tap rejected` event, `Audio discontinuity` event, `queue_overflow` warning,
+or PortAudio `input_overflow` warning was observed. The detector remained in
+epoch 0, and Ctrl+C shutdown completed cleanly.
+
+**Transport and timing observations**
+
+The stream-reported latency was 47.00 ms. Queue-dwell values were 0.13, 0.10,
+0.11, 0.11, 0.28, 0.05, and 0.08 ms. They provide no evidence of queue backlog
+during this short run, but do not validate queue capacity eight as universally
+sufficient.
+
+Detector-lookahead values were 102.81, 104.29, 101.06, 100.17, 103.85, 101.83,
+and 103.21 ms. These are detector/algorithm timing evidence and are not precise
+end-to-end user-perceived latency.
+
+The terminal also emitted values such as:
+
+```text
+approx. onset-to-result=82331177.79 ms
+approx. onset-to-result=82331163.10 ms
+```
+
+These approximately 82-million-ms values are physically impossible and
+invalid. They are preserved here as evidence of a timing instrumentation
+defect, not as latency measurements. The likely high-level interpretation is
+that the PortAudio stream-time value and ADC-time estimate were not safely
+comparable under the current calculation on this physical backend/run. The
+exact root cause has not been established.
+
+This metric must not be clamped, silently reinterpreted, or used in project
+claims. Phase 3A.3 should validate clock compatibility and physical
+plausibility, falling safely to `unavailable` rather than emitting an invalid
+duration.
+
+**Interpretation and limitations**
+
+The defensible result is:
+
+> The first continuous live Lenovo WDM-KS pilot detected and correctly
+> classified all 7 intended same-hand LEFT/RIGHT taps using the previously
+> frozen classifier without refitting or calibration.
+
+This is not a 100% localization-accuracy, production-accuracy, or generalizable
+performance claim. The run was short and positive-case-focused. It does not
+measure a false-positive rate, weak-tap recall, callback size or cadence,
+long-run queue behavior, background-noise robustness, causal-window equivalence
+to the offline collector, or true end-to-end latency. The absence of a warning
+or rejection applies only to the observed run and must not be generalized to
+unobserved conditions.
+
+**Resulting decision**
+
+- Treat Phase 3A.2a as complete and checkpointed.
+- Record Phase 3A.2b as a successful first physical pilot, not a broad
+  robustness result.
+- Proceed to Phase 3A.3 live robustness and measurement work.
+- First make invalid cross-clock onset-to-result timing fail safely to
+  `unavailable` before relying on that metric.
+- Then perform controlled live robustness experiments rather than immediately
+  refitting or recalibrating the frozen classifier.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
