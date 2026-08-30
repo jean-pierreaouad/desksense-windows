@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-08-29
+Status captured: 2026-08-30
 
 ## Project purpose
 
@@ -74,12 +74,13 @@ hand more cleanly. It still represents one user, Lenovo laptop, wooden
 desk/setup, two zones, and one external session—not general, cross-device, or
 product-level accuracy.
 
-Phase 3A.1 is now implemented and independently code-reviewed. It provides a
-pure, hardware-independent streaming detector state machine and label-free
-application of the existing frozen threshold. The complete suite passes 280
-tests. No `sounddevice.InputStream`, live `--sense` command, microphone test,
-or Windows action path exists yet, and this implementation has not been
-checkpointed at the time of this status update.
+Phase 3A.1 is complete and checkpointed. Phase 3A.2a now provides an injected
+`sounddevice.InputStream` adapter, bounded callback-to-main-thread transport,
+and a terminal `--sense` command that applies the frozen baseline unchanged.
+The complete suite passes 340 tests. The implementation has been independently
+code-reviewed but is not yet checkpointed at the time of this status update.
+No physical microphone stream has been opened with `--sense`, and no Windows
+action path exists yet.
 
 ## Delivered milestones
 
@@ -320,8 +321,8 @@ or claimed, and the official frozen result remains unchanged.
 
 ### Phase 3A.1 — pure streaming detector and label-free frozen inference
 
-Status: **implementation and code review complete; hardware integration and
-live validation not started; Checkpoint #7 pending**
+Status: **implementation and code review complete; Checkpoint #7 complete;
+hardware-independent core ready for live integration**
 
 Implemented:
 
@@ -434,8 +435,128 @@ This is a software/DSP architecture milestone, not evidence that live sensing
 works on the Lenovo. Unknowns include WDM-KS callback behavior, physical onset
 thresholds, adaptive-floor behavior under real noise, causal alignment on real
 taps, weak-tap recall, speech/typing/desk-bump false positives, sustained-noise
-behavior, callback sizes, overflow/discontinuity handling, worker scheduling,
-and end-to-end latency.
+behavior, callback sizes, overflow/discontinuity handling, callback/main-thread
+scheduling, and end-to-end latency.
+
+### Phase 3A.2a — injected live audio adapter and terminal sensing
+
+Status: **implementation and fake validation complete; independently
+code-reviewed; physical Lenovo validation not started; Checkpoint #8 pending**
+
+Implemented live path:
+
+```text
+explicit Windows input endpoint
+  -> injected sounddevice.InputStream
+  -> lightweight PortAudio callback
+  -> one owned contiguous float32 copy
+  -> bounded Queue(maxsize=8)
+  -> main-thread consumer
+  -> StreamingTapDetector
+  -> exact accepted 9,600 x 2 candidate
+  -> extract_two_channel_features()
+  -> unchanged frozen peak-ratio baseline
+  -> classify_peak_ratio_value()
+  -> structured terminal event
+```
+
+There is no additional worker thread. `realtime.py` does not import
+sounddevice; the CLI retains lazy backend loading and injects the backend into
+the live runner. The frozen live domain is 48 kHz, two channels, float32, and a
+9,600-frame / 200 ms candidate window. The selected endpoint name and host API
+must match the frozen artifact, including Windows WDM-KS for the current Lenovo
+baseline. The historical numeric device index is not treated as stable, so a
+different current index is allowed when endpoint identity and the feature
+domain still match.
+
+The initial `InputStream` configuration uses the explicit current device,
+48,000 Hz, two channels, float32, `blocksize=0`, the input callback, and a
+finished callback. Allowing PortAudio to choose callback sizes is intentional;
+the Phase 3A.1 detector accepts arbitrary caller chunk sizes and internally
+reblocks them onto fixed 240-frame / 5 ms boundaries. No explicit low-latency
+mode is requested before physical WDM-KS behavior is measured.
+
+Callback and bounded-transport behavior:
+
+- Callback sequence numbers are zero-based and monotonically increasing.
+- Each callback takes one owned contiguous float32 copy and snapshots primitive
+  PortAudio time/status data plus Python callback-arrival and enqueue-attempt
+  monotonic timestamps.
+- Queue insertion is non-blocking. The callback performs no detector DSP,
+  feature extraction, classification, terminal output, or filesystem work.
+- The initial queue capacity is eight callback packets. This is a reviewable
+  engineering default, not a physically optimized value.
+- A full queue drops the current/newest callback packet while retaining older
+  queued packets in order. Known dropped callback/frame counts accumulate, and
+  the next successfully retained packet carries explicit discontinuity
+  metadata.
+
+Known continuity loss includes queue overflow, PortAudio input overflow,
+callback sequence gaps, and other relevant PortAudio status problems. Before
+the first retained post-gap packet is processed, the main thread calls
+`detector.notify_discontinuity()` exactly once for that boundary. Multiple
+reasons still cause one reset. Detector history, partial blocks, pending
+candidate state, refractory state, and learned noise state are cleared, a new
+epoch begins in `LEARNING`, and no candidate may intentionally bridge the gap.
+The adapter does not guess how many frames PortAudio itself discarded.
+
+Only a `DetectionResult` whose status is `detected` reaches feature extraction
+and classification. Rejected candidates are not classified even when they
+carry waveform data, such as a near-clipping rejection. Accepted candidates
+use the existing complete-window `peak_ratio_db_ch2_minus_ch1` feature and the
+stored frozen threshold, direction, and tie rule without fitting,
+normalization, calibration, or model modification. An undefined primary
+feature produces a structured rejection rather than a fabricated LEFT/RIGHT
+label. Reported margin is a dB threshold distance, not a probability.
+
+Timing evidence includes, where available, PortAudio `inputBufferAdcTime` and
+callback `currentTime`, Python callback-arrival and enqueue-attempt monotonic
+timestamps, main-loop processing start, detector-result availability,
+feature/inference completion, stream-reported latency, queue dwell, detector
+lookahead, and approximate onset/center ADC mapping. PortAudio timestamps are
+not subtracted directly from Python performance-counter timestamps because
+their origins may differ. No precise physical impact-to-terminal latency is
+claimed.
+
+The live CLI requires both explicit inputs:
+
+```powershell
+python -m desksense --sense --device 18 --baseline baselines/lenovo-left-right-v1.json
+```
+
+`--sense` is mutually exclusive with other operational modes. Its structured
+terminal output covers startup/learning, armed, discontinuity/relearning,
+detected LEFT/RIGHT taps, and rejected candidates. It saves no audio, writes no
+automatic report, and executes no Windows action.
+
+Verification:
+
+- Realtime tests: 39 passed.
+- Focused `--sense` CLI tests: 21 passed, 52 deselected.
+- Complete CLI tests: 73 passed.
+- Streaming, inference, features, analysis, and frozen-baseline regression
+  selection: 152 passed.
+- Complete suite: 340 passed.
+- `pip check`, `compileall`, lazy import checks, and `git diff --check` passed.
+- Importing realtime/CLI did not import sounddevice.
+- No microphone hardware was accessed and no physical `--sense` command ran.
+
+The fake tests cover the exact stream domain, callback ownership and PortAudio
+buffer reuse, channel order, bounded queue/drop propagation, PortAudio
+overflow, fatal callback errors, endpoint/host-API compatibility, changed
+device indexes, variable callback sizes, discontinuity-before-processing,
+cross-gap history prevention, detected-only classification, near-clipping and
+undefined-feature rejection, unchanged frozen inference, event ordering,
+startup/armed/relearning events, unexpected termination, Ctrl+C-style cleanup,
+startup failure, cleanup-error precedence, and absence of waveform/report
+persistence.
+
+This remains a software integration result. Actual Lenovo WDM-KS callback
+sizes and cadence, PortAudio status behavior, queue high-water and overflow
+frequency, detector noise-floor behavior, live onset thresholds, typing/speech
+and movement false triggers, weak-tap recall, causal center alignment, frozen
+feature behavior on causal windows, observed margins, and end-to-end latency
+remain unmeasured.
 
 ## Lenovo audio endpoints observed
 
@@ -690,7 +811,7 @@ larger dataset is available.
 The primary engineering question is now:
 
 > Can the reviewed pure detector and unchanged frozen LEFT/RIGHT rule be
-> integrated with the real Lenovo WDM-KS stream and produce reliable live tap
+> validated on the real Lenovo WDM-KS stream and produce reliable live tap
 > events without callback gaps, duplicate triggers, or unacceptable false
 > positives and misses?
 
@@ -700,17 +821,12 @@ next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
 The collector, datasets, offline analysis, frozen baseline, external
-evaluation, pure streaming detector, and label-free frozen decision path are
-complete. The immediate next action is Checkpoint #7. Phase 3A.2 should then
-add only the live integration boundary:
-
-1. An injectable `sounddevice.InputStream` adapter for the selected endpoint.
-2. Bounded callback-to-worker transport with explicit overflow/discontinuity
-   handling.
-3. A live `--sense` CLI that loads the frozen baseline unchanged and reports
-   structured detection/classification events in the terminal.
-4. Physical Lenovo measurements of detection behavior, causal alignment,
-   false positives, misses, duplicates, and latency.
+evaluation, pure streaming detector, label-free frozen decision path, injected
+live adapter, bounded callback transport, and terminal `--sense` path are
+implemented. The immediate next action is Checkpoint #8. Phase 3A.2b should
+then perform the first physical Lenovo live-sensing pilot and measure callback
+behavior, queue pressure, detection behavior, causal alignment, false
+positives, misses, duplicate events, classification margins, and latency.
 
 Windows actions, hotkeys, and GUI behavior remain deferred until reliable
 real-time sensing is demonstrated.
@@ -739,8 +855,9 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | 2B — reproducible offline spatial-feasibility analysis | Pipeline and formal main-session within-session analysis complete |
 | 2C — frozen baseline and external evaluation | Complete; baseline precommitted; first same-hand cross-session result 39/40 |
 | External validation evidence gate | First scoped session complete; further untouched sessions required for modified models or broader claims |
-| 3A.1 — pure streaming detector and label-free inference | Complete and code-reviewed; 280-test suite passing; Checkpoint #7 pending |
-| 3A.2 — live audio adapter and terminal sensing | Next; no microphone integration exists yet |
+| 3A.1 — pure streaming detector and label-free inference | Complete, code-reviewed, and checkpointed |
+| 3A.2a — injected live audio adapter and terminal sensing | Implementation and fake validation complete; 340-test suite passing; Checkpoint #8 pending |
+| 3A.2b — first physical live Lenovo sensing pilot | Next; no physical `--sense` stream has been opened yet |
 | 3B — physical real-time reliability and rejection validation | Not started |
 | 4 — real-time DeskSense and Windows action mapping | Not started |
 | 5 — cross-laptop hardware adaptation and testing | Not started |
@@ -776,8 +893,9 @@ broader claims require additional users, sessions, desks, devices, and zones.
 - Diagnostic and characterization commands continue to omit raw audio from
   their JSON reports; waveform retention occurs only in explicit dataset
   collection sessions.
-- Phase 3A.1 keeps streaming history and candidate windows in memory only. It
-  introduces no filesystem persistence, microphone stream, callback thread,
-  CLI sensing mode, or action execution.
+- Phase 3A.2a keeps streaming history and candidate windows in memory only. It
+  adds an explicit live microphone mode but no waveform/report persistence or
+  action execution. The callback is supplied by PortAudio; detector and frozen
+  inference work remains on the main thread without an additional worker.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

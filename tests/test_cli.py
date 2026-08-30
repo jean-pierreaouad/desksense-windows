@@ -198,6 +198,327 @@ def test_dataset_collection_arguments_parse() -> None:
     assert args.characterize is False
 
 
+def test_sense_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            "baselines/lenovo-left-right-v1.json",
+        ]
+    )
+
+    assert args.sense is True
+    assert args.device == 18
+    assert args.baseline == Path("baselines/lenovo-left-right-v1.json")
+    assert args.record is False
+    assert args.characterize is False
+    assert args.collect_dataset is False
+
+
+@pytest.mark.parametrize(
+    "other_mode",
+    [
+        ["--record"],
+        ["--characterize"],
+        ["--collect-dataset"],
+        ["--analyze-dataset", "datasets/session"],
+        ["--freeze-baseline", "datasets/development"],
+        ["--evaluate-frozen-baseline", "datasets/external"],
+    ],
+)
+def test_sense_is_mutually_exclusive_with_existing_modes(
+    other_mode: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(
+            [
+                "--sense",
+                "--device",
+                "18",
+                "--baseline",
+                "baseline.json",
+                *other_mode,
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--sense", "--baseline", "baseline.json"],
+        ["--sense", "--device", "18"],
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            "baseline.json",
+            "--samples-per-zone",
+            "2",
+        ],
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            "baseline.json",
+            "--dataset-root",
+            "datasets",
+        ],
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            "baseline.json",
+            "--interaction-context",
+            "same-hand",
+        ],
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            "baseline.json",
+            "--save-report",
+            "report.json",
+        ],
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            "baseline.json",
+            "--save-baseline",
+            "other-baseline.json",
+        ],
+    ],
+)
+def test_sense_requires_explicit_inputs_and_rejects_irrelevant_options(
+    arguments: list[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(arguments)
+
+
+def test_sense_cli_lazily_loads_backend_and_delegates(
+    monkeypatch, capsys
+) -> None:
+    backend = object()
+    baseline_path = Path("baselines/synthetic.json")
+    calls: list[object] = []
+
+    def fake_load_backend():
+        calls.append("load_backend")
+        return backend
+
+    def fake_run(
+        audio_backend,
+        *,
+        device_index,
+        baseline_path,
+        event_handler,
+    ):
+        calls.append(
+            (audio_backend, device_index, baseline_path, event_handler)
+        )
+        event_handler(
+            cli.LiveSensingEvent(
+                event_type="state",
+                status="armed",
+                message="armed",
+                stream_epoch=0,
+            )
+        )
+        return object()
+
+    monkeypatch.setattr(cli, "_load_audio_backend", fake_load_backend)
+    monkeypatch.setattr(cli, "run_live_sensing", fake_run)
+
+    exit_code = cli.main(
+        [
+            "--sense",
+            "--device",
+            "18",
+            "--baseline",
+            str(baseline_path),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Armed (detector epoch 0)." in captured.out
+    assert calls == [
+        "load_backend",
+        (backend, 18, baseline_path, cli._print_live_sensing_event),
+    ]
+
+
+def test_sense_cli_reports_backend_load_failure_without_running(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: (_ for _ in ()).throw(OSError("PortAudio unavailable")),
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_live_sensing",
+        lambda *args, **kwargs: pytest.fail("runner must not be called"),
+    )
+
+    exit_code = cli.main(
+        ["--sense", "--device", "18", "--baseline", "baseline.json"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Could not load the audio backend" in captured.err
+    assert "PortAudio unavailable" in captured.err
+
+
+def test_sense_cli_interrupt_returns_130(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(cli, "_load_audio_backend", lambda: object())
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cli, "run_live_sensing", interrupt)
+
+    exit_code = cli.main(
+        ["--sense", "--device", "18", "--baseline", "baseline.json"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 130
+    assert "DeskSense live sensing interrupted" in captured.err
+
+
+def test_sense_cli_reports_realtime_permission_error(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(cli, "_load_audio_backend", lambda: object())
+
+    def fail(*args, **kwargs):
+        raise cli.RealtimeSensingError(
+            "Access is denied by Windows", category="permission_denied"
+        )
+
+    monkeypatch.setattr(cli, "run_live_sensing", fail)
+
+    exit_code = cli.main(
+        ["--sense", "--device", "18", "--baseline", "baseline.json"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Live sensing failed: Access is denied by Windows" in captured.err
+    assert "Privacy & security > Microphone" in captured.err
+
+
+def test_live_startup_and_state_event_formatting() -> None:
+    startup = cli.LiveSensingEvent(
+        event_type="startup",
+        status="learning",
+        message="learning",
+        stream_epoch=0,
+        timing={"stream_reported_latency_seconds": 0.0125},
+        details={
+            "device_index": 18,
+            "endpoint_name": "Microphone Array 1",
+            "host_api_name": "Windows WDM-KS",
+            "sample_rate_hz": 48_000.0,
+            "channel_count": 2,
+            "dtype": "float32",
+            "baseline_path": "baselines/lenovo-left-right-v1.json",
+            "baseline_source_session_id": "development-session",
+            "threshold_db": 0.12793235855251162,
+            "direction": "LEFT below threshold; RIGHT at or above threshold",
+            "startup_learning_seconds": 0.75,
+        },
+    )
+
+    rendered = cli.format_live_sensing_event(startup)
+
+    assert "Device: 18: Microphone Array 1" in rendered
+    assert "Host API: Windows WDM-KS" in rendered
+    assert "48000 Hz, 2 channel(s), float32" in rendered
+    assert "reported latency 12.50 ms" in rendered
+    assert "source session development-session" in rendered
+    assert "Frozen threshold: +0.127932 dB" in rendered
+    assert "LEFT below threshold; RIGHT at or above threshold" in rendered
+    assert "Learning room noise for 0.75 s" in rendered
+
+
+def test_live_detection_event_formats_db_margin_and_timing_not_probability() -> None:
+    event = cli.LiveSensingEvent(
+        event_type="detection",
+        status="detected",
+        message="detected",
+        stream_epoch=2,
+        predicted_zone="RIGHT",
+        feature_value_db=1.25,
+        threshold_db=0.125,
+        absolute_margin_db=1.125,
+        onset_frame_index=40_000,
+        center_frame_index=40_123,
+        timing={
+            "approximate_onset_to_result_seconds": 0.112,
+            "queue_dwell_seconds": 0.003,
+            "detector_latency_seconds": 0.1,
+        },
+    )
+
+    rendered = cli.format_live_sensing_event(event)
+
+    assert "Tap: RIGHT" in rendered
+    assert "peak ratio=+1.250000 dB" in rendered
+    assert "threshold=+0.125000 dB" in rendered
+    assert "margin=1.125000 dB" in rendered
+    assert "epoch=2; onset=40000; center=40123" in rendered
+    assert "approx. onset-to-result=112.00 ms" in rendered
+    assert "queue dwell=3.00 ms" in rendered
+    assert "detector lookahead=100.00 ms" in rendered
+    assert "probability" not in rendered.lower()
+
+
+def test_live_rejection_and_discontinuity_event_formatting() -> None:
+    rejection = cli.LiveSensingEvent(
+        event_type="rejection",
+        status="rejected",
+        message="rejected",
+        stream_epoch=1,
+        rejection_reasons=("near_clipping",),
+        onset_frame_index=1_000,
+        center_frame_index=1_020,
+    )
+    discontinuity = cli.LiveSensingEvent(
+        event_type="discontinuity",
+        status="relearning",
+        message="gap",
+        stream_epoch=2,
+        rejection_reasons=("queue_overflow", "callback_sequence_gap"),
+        details={
+            "dropped_callback_count_before": 2,
+            "dropped_frame_count_before": 960,
+        },
+    )
+
+    rejected_text = cli.format_live_sensing_event(rejection)
+    discontinuity_text = cli.format_live_sensing_event(discontinuity)
+
+    assert "Tap rejected: near_clipping" in rejected_text
+    assert "epoch=1; onset=1000; center=1020" in rejected_text
+    assert "Audio discontinuity: queue_overflow, callback_sequence_gap" in (
+        discontinuity_text
+    )
+    assert "dropped callbacks=2, dropped frames=960" in discontinuity_text
+    assert "Detector reset to learning (epoch 2)" in discontinuity_text
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

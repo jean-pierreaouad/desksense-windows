@@ -1410,6 +1410,154 @@ latency result is claimed from these synthetic tests.
 - Continue deferring Windows action execution until physical real-time sensing
   is reliable.
 
+## Experiment 14 — Phase 3A.2a injected live adapter and fake-tested sensing CLI
+
+**Purpose**
+
+Connect the reviewed Phase 3A.1 detector and label-free frozen inference path
+to an injectable PortAudio-compatible input stream while keeping callback work
+bounded and testable. This was an engineering/software milestone, not a
+physical microphone experiment. No `--sense` stream was opened, no microphone
+hardware was accessed, and no physical callback, latency, detection, or
+classification result was produced.
+
+**Implemented architecture**
+
+The live path is:
+
+```text
+explicit Windows input endpoint
+  -> injected sounddevice.InputStream
+  -> lightweight PortAudio callback
+  -> one owned contiguous float32 copy
+  -> bounded Queue(maxsize=8)
+  -> main-thread consumer
+  -> StreamingTapDetector
+  -> exact accepted 9,600 x 2 candidate
+  -> extract_two_channel_features()
+  -> unchanged frozen peak-ratio baseline
+  -> classify_peak_ratio_value()
+  -> structured terminal event
+```
+
+No additional worker thread was introduced. The realtime module does not
+import sounddevice; the CLI preserves lazy loading and injects the selected
+backend. The stream is constructed with the explicit current device, 48 kHz,
+two channels, float32, `blocksize=0`, the input callback, and a finished
+callback. PortAudio may therefore choose host-appropriate callback sizes, while
+the pure detector retains its deterministic internal 5 ms / 240-frame blocks.
+
+**Frozen-domain compatibility**
+
+Live operation requires the existing 48 kHz, two-channel, float32,
+9,600-frame / 200 ms candidate domain. The current endpoint name and host API
+must agree with the frozen artifact; Windows WDM-KS is expected for the current
+Lenovo baseline. The historical numeric device index is treated as
+session-dependent, so a changed current index is allowed when endpoint
+identity and all feature-domain requirements still match.
+
+The baseline feature, threshold, direction, and tie rule remain unchanged. No
+live fitting, normalization, calibration, or model modification occurs.
+
+**Callback and bounded transport**
+
+Each callback receives a zero-based monotonically increasing sequence number,
+takes one owned contiguous float32 copy, snapshots primitive PortAudio
+time/status fields and Python monotonic callback/enqueue-attempt timestamps,
+and attempts a non-blocking queue insertion. It performs no detector DSP,
+feature extraction, inference, terminal output, JSON work, or filesystem work.
+
+The initial queue holds at most eight callback packets. If it is full, the
+current/newest packet is dropped so the callback does not block and older
+queued packets retain order. Known dropped callback and frame counts
+accumulate, and the next packet successfully retained carries explicit loss
+metadata. Eight packets is an initial engineering value; its adequacy on the
+Lenovo has not been measured.
+
+**Discontinuity and reset behavior**
+
+Queue overflow, PortAudio input overflow, callback sequence gaps, and other
+relevant PortAudio status problems identify known continuity loss. Before the
+first retained post-gap packet reaches the detector, the main thread calls
+`detector.notify_discontinuity()` exactly once for that boundary. Multiple
+reason codes still cause a single reset.
+
+The reset clears history, partial internal blocks, pending candidate state,
+refractory state, and learned noise state, then begins a new stream epoch in
+`LEARNING`. No candidate intentionally joins samples from opposite sides of a
+known gap. The adapter records callback/frame losses it knows about but does
+not fabricate a count for frames discarded internally by PortAudio.
+
+**Classification and terminal events**
+
+Only `DetectionResult.status == "detected"` enters feature extraction and
+frozen classification. A rejected result is not classified even if it retains
+a candidate window, including a near-clipping rejection. A detected exact
+9,600 x 2 candidate uses the existing complete-window
+`peak_ratio_db_ch2_minus_ch1` feature and label-free frozen decision helper. If
+the feature is undefined, the system emits a structured rejection without
+inventing a zone. Margin is reported as a dB distance from the threshold, not
+as a probability.
+
+The `--sense` CLI requires an explicit device and baseline and is mutually
+exclusive with the existing operational modes. It formats startup/learning,
+armed, discontinuity/relearning, detected LEFT/RIGHT, and rejected-candidate
+events. It writes no audio or report and executes no Windows action.
+
+**Timing instrumentation**
+
+The adapter preserves, where available, PortAudio `inputBufferAdcTime`,
+callback `currentTime`, Python callback-arrival and enqueue-attempt monotonic
+timestamps, main-loop processing start, detector-result availability,
+feature/inference completion, stream-reported latency, queue dwell, detector
+lookahead, and approximate onset/center ADC mapping. It does not directly
+subtract PortAudio absolute times from Python performance-counter values
+because their clock origins may differ. No precise impact-to-terminal latency
+is inferred from fake testing.
+
+**Hardware-independent verification**
+
+- Realtime tests: 39 passed.
+- Focused `--sense` CLI tests: 21 passed, 52 deselected.
+- Complete CLI tests: 73 passed.
+- Streaming, inference, features, analysis, and frozen-baseline regression
+  selection: 152 passed.
+- Complete suite: 340 passed.
+- `pip check`, `compileall`, lazy import checks, and `git diff --check` passed.
+- Importing realtime/CLI did not import sounddevice.
+- No microphone hardware was accessed and no physical `--sense` command ran.
+
+Fake coverage includes exact `InputStream` arguments, settings validation
+before start, endpoint and host-API compatibility, changed current device
+indexes, opened-stream mismatch rejection, callback ownership and PortAudio
+buffer reuse, channel order, queue bounds and drop propagation, PortAudio
+overflow, fatal callback errors, ordered variable-size packets,
+discontinuity-before-processing, prevention of cross-gap history, detected-only
+classification, near-clipping and undefined-feature rejection, unchanged
+frozen inference, result/event order, startup/armed/relearning transitions,
+unexpected stream termination, deterministic stop, Ctrl+C-style cleanup,
+startup failure, cleanup-error precedence, and absence of audio/report
+persistence.
+
+**Limitations**
+
+Actual Lenovo WDM-KS callback sizes and cadence, PortAudio status behavior,
+queue high-water and overflow frequency, physical noise-floor adaptation,
+continuous-audio onset thresholds, false triggers from typing/speech/desk
+movement, weak-tap recall, causal center alignment, frozen feature behavior on
+live causal windows, observed margins, and end-to-end latency remain unknown.
+Fake tests establish software behavior only; they do not establish physical
+live sensing performance.
+
+**Resulting decision**
+
+- Treat Phase 3A.2a implementation and fake validation as complete and
+  independently code-reviewed.
+- Complete Checkpoint #8 before opening the first live microphone stream.
+- Proceed next to Phase 3A.2b, the first physical live Lenovo sensing pilot.
+- Continue deferring Windows actions, hotkeys, GUI behavior, calibration, and
+  model changes until physical sensing behavior is measured.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.

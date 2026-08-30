@@ -38,6 +38,11 @@ from desksense.frozen_baseline import (
     write_external_evaluation_report,
     write_frozen_baseline,
 )
+from desksense.realtime import (
+    LiveSensingEvent,
+    RealtimeSensingError,
+    run_live_sensing,
+)
 
 _AUTO_REPORT = object()
 
@@ -47,8 +52,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="desksense-diagnose",
         description=(
             "Inspect Windows audio inputs, characterize microphone channels, or "
-            "collect, analyze, freeze, or externally evaluate a local labeled "
-            "tap dataset."
+            "collect, analyze, freeze, externally evaluate, or sense taps with "
+            "a frozen local baseline."
         ),
     )
     parser.add_argument(
@@ -56,7 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=_nonnegative_device_index,
         metavar="INDEX",
         help=(
-            "input device index to select (required for --collect-dataset; "
+            "input device index to select (required for --collect-dataset and "
+            "--sense; "
             "diagnostic/characterization modes otherwise use the system default; "
             "not used by offline workflows)"
         ),
@@ -114,6 +120,14 @@ def build_parser() -> argparse.ArgumentParser:
             "sample in a different validated session; entirely offline"
         ),
     )
+    capture_mode.add_argument(
+        "--sense",
+        action="store_true",
+        help=(
+            "continuously detect taps from an explicit input device and apply "
+            "an existing frozen LEFT/RIGHT baseline; no audio is saved"
+        ),
+    )
     parser.add_argument(
         "--samples-per-zone",
         type=_positive_integer,
@@ -155,7 +169,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--baseline",
         type=Path,
         metavar="PATH",
-        help="required with --evaluate-frozen-baseline; baseline is never modified",
+        help=(
+            "required with --evaluate-frozen-baseline and --sense; baseline is "
+            "never modified"
+        ),
     )
     parser.add_argument(
         "--save-report",
@@ -178,8 +195,14 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.save_baseline is not None and args.freeze_baseline is None:
         parser.error("--save-baseline requires --freeze-baseline SESSION")
-    if args.baseline is not None and args.evaluate_frozen_baseline is None:
-        parser.error("--baseline requires --evaluate-frozen-baseline SESSION")
+    if (
+        args.baseline is not None
+        and args.evaluate_frozen_baseline is None
+        and not args.sense
+    ):
+        parser.error(
+            "--baseline requires --evaluate-frozen-baseline SESSION or --sense"
+        )
 
     if args.freeze_baseline is not None:
         if args.device is not None:
@@ -233,6 +256,22 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "{hand-location-confounded,same-hand}"
             )
         return _run_dataset_analysis_cli(args)
+
+    if args.sense:
+        if args.device is None:
+            parser.error("--sense requires --device INDEX")
+        if args.baseline is None:
+            parser.error("--sense requires --baseline PATH")
+        if args.samples_per_zone is not None or args.dataset_root is not None:
+            parser.error(
+                "--samples-per-zone and --dataset-root cannot be combined with "
+                "--sense"
+            )
+        if args.interaction_context is not None:
+            parser.error("--interaction-context cannot be combined with --sense")
+        if args.save_report is not None:
+            parser.error("--save-report cannot be combined with --sense")
+        return _run_sense_cli(args)
 
     if args.interaction_context is not None:
         parser.error(
@@ -445,6 +484,168 @@ def _run_dataset_collection_cli(args: argparse.Namespace) -> int:
         print(f"Dataset collection failed: {error}", file=sys.stderr)
         return 1
     return 0
+
+
+def _run_sense_cli(args: argparse.Namespace) -> int:
+    """Run the injected live adapter while preserving lazy backend loading."""
+
+    try:
+        audio_backend = _load_audio_backend()
+    except Exception as error:
+        details = describe_audio_error(error)
+        print(
+            f"Could not load the audio backend: {details['message']}",
+            file=sys.stderr,
+        )
+        if details["category"] == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+
+    try:
+        run_live_sensing(
+            audio_backend,
+            device_index=args.device,
+            baseline_path=args.baseline,
+            event_handler=_print_live_sensing_event,
+        )
+    except KeyboardInterrupt:
+        print("\nDeskSense live sensing interrupted.", file=sys.stderr)
+        return 130
+    except RealtimeSensingError as error:
+        print(f"Live sensing failed: {error}", file=sys.stderr)
+        if error.category == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+    except (OSError, TypeError, ValueError) as error:
+        print(f"Live sensing failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def format_live_sensing_event(event: LiveSensingEvent) -> str:
+    """Render one structured realtime event without per-audio-block noise."""
+
+    if event.event_type == "startup":
+        details = event.details
+        latency = _format_optional_milliseconds(
+            event.timing.get("stream_reported_latency_seconds")
+        )
+        return "\n".join(
+            [
+                "DeskSense live LEFT/RIGHT sensing",
+                (
+                    f"Device: {details['device_index']}: "
+                    f"{details['endpoint_name']}"
+                ),
+                f"Host API: {details['host_api_name']}",
+                (
+                    "Stream: "
+                    f"{_format_rate(float(details['sample_rate_hz']))}, "
+                    f"{details['channel_count']} channel(s), {details['dtype']}, "
+                    f"reported latency {latency}"
+                ),
+                (
+                    f"Baseline: {details['baseline_path']} "
+                    f"(source session {details['baseline_source_session_id']})"
+                ),
+                (
+                    f"Frozen threshold: {float(details['threshold_db']):+.6f} dB; "
+                    f"{details['direction']}"
+                ),
+                (
+                    "Learning room noise for "
+                    f"{float(details['startup_learning_seconds']):g} s..."
+                ),
+            ]
+        )
+
+    if event.event_type == "state" and event.status == "armed":
+        return f"Armed (detector epoch {_format_optional_index(event.stream_epoch)})."
+
+    if event.event_type == "discontinuity":
+        reasons = _format_reason_codes(event.rejection_reasons)
+        dropped_callbacks = int(
+            event.details.get("dropped_callback_count_before", 0)
+        )
+        dropped_frames = int(event.details.get("dropped_frame_count_before", 0))
+        return (
+            "Audio discontinuity: "
+            f"{reasons}; dropped callbacks={dropped_callbacks}, "
+            f"dropped frames={dropped_frames}. Detector reset to learning "
+            f"(epoch {_format_optional_index(event.stream_epoch)})."
+        )
+
+    if event.event_type == "detection" and event.status == "detected":
+        timing_parts = _format_live_timing(event.timing)
+        timing_suffix = f"; {timing_parts}" if timing_parts else ""
+        return (
+            f"Tap: {event.predicted_zone}; "
+            f"peak ratio={float(event.feature_value_db):+.6f} dB; "
+            f"threshold={float(event.threshold_db):+.6f} dB; "
+            f"margin={float(event.absolute_margin_db):.6f} dB; "
+            f"epoch={_format_optional_index(event.stream_epoch)}; "
+            f"onset={_format_optional_index(event.onset_frame_index)}; "
+            f"center={_format_optional_index(event.center_frame_index)}"
+            f"{timing_suffix}"
+        )
+
+    if event.event_type == "rejection" or event.status == "rejected":
+        return (
+            "Tap rejected: "
+            f"{_format_reason_codes(event.rejection_reasons)}; "
+            f"epoch={_format_optional_index(event.stream_epoch)}; "
+            f"onset={_format_optional_index(event.onset_frame_index)}; "
+            f"center={_format_optional_index(event.center_frame_index)}"
+        )
+
+    return event.message
+
+
+def _print_live_sensing_event(event: LiveSensingEvent) -> None:
+    print(format_live_sensing_event(event), flush=True)
+
+
+def _format_live_timing(timing: dict[str, Any] | Any) -> str:
+    parts: list[str] = []
+    approximate = _format_optional_milliseconds(
+        timing.get("approximate_onset_to_result_seconds"),
+        unavailable=None,
+    )
+    if approximate is not None:
+        parts.append(f"approx. onset-to-result={approximate}")
+    queue_dwell = _format_optional_milliseconds(
+        timing.get("queue_dwell_seconds"), unavailable=None
+    )
+    if queue_dwell is not None:
+        parts.append(f"queue dwell={queue_dwell}")
+    detector_latency = _format_optional_milliseconds(
+        timing.get("detector_latency_seconds"), unavailable=None
+    )
+    if detector_latency is not None:
+        parts.append(f"detector lookahead={detector_latency}")
+    return "; ".join(parts)
+
+
+def _format_optional_milliseconds(
+    seconds: Any,
+    *,
+    unavailable: str | None = "unavailable",
+) -> str | None:
+    if seconds is None:
+        return unavailable
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError, OverflowError):
+        return unavailable
+    return f"{value * 1_000.0:.2f} ms"
+
+
+def _format_reason_codes(reasons: Sequence[str]) -> str:
+    return ", ".join(reasons) if reasons else "unspecified reason"
+
+
+def _format_optional_index(value: int | None) -> str:
+    return "unavailable" if value is None else str(value)
 
 
 def format_report(report: dict[str, Any]) -> str:
