@@ -15,6 +15,7 @@ to Phase 2A's global search over a complete 1.5 second guided capture.
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
@@ -294,6 +295,78 @@ class DetectionResult:
     state_after: DetectorState
 
 
+@dataclass(frozen=True)
+class DetectorDiagnosticCounters:
+    """Deterministic detector-decision counters for one stream epoch."""
+
+    fixed_blocks_processed_total: int = 0
+    learning_suppressed_blocks: int = 0
+    armed_evaluated_blocks: int = 0
+    collecting_blocks: int = 0
+    refractory_suppressed_blocks: int = 0
+    rms_pass_count: int = 0
+    rms_fail_count: int = 0
+    peak_pass_count: int = 0
+    peak_fail_count: int = 0
+    crest_pass_count: int = 0
+    crest_fail_count: int = 0
+    all_gates_pass_count: int = 0
+    onset_candidates_started: int = 0
+    completed_detections: int = 0
+    completed_rejections: int = 0
+    candidates_discarded_by_discontinuity: int = 0
+    candidate_start_records_dropped: int = 0
+
+
+@dataclass(frozen=True)
+class ArmedBlockDiagnostic:
+    """Existing onset-gate evidence for one fixed ARMED block."""
+
+    stream_epoch: int
+    block_start_frame_index: int
+    block_end_frame_index_exclusive: int
+    block_rms: float
+    block_peak_absolute: float
+    block_crest_factor: float
+    learned_noise_floor_rms: float
+    required_rms_threshold: float
+    required_peak_threshold: float
+    required_crest_threshold: float
+    rms_ratio: float
+    peak_ratio: float
+    crest_ratio: float
+    all_gates_score: float
+
+
+@dataclass(frozen=True)
+class CandidateStartDiagnostic:
+    """One existing ARMED-to-COLLECTING transition, without audio samples."""
+
+    stream_epoch: int
+    onset_frame_index: int
+    block: ArmedBlockDiagnostic
+
+
+@dataclass(frozen=True)
+class DetectorDiagnosticSnapshot:
+    """Immutable cumulative and current reporting-interval diagnostics.
+
+    Counters are reset for every detector epoch. ``interval_counters`` and
+    ``closest_armed_block`` describe the interval since the last call to
+    :meth:`StreamingTapDetector.consume_diagnostic_interval`; consuming an
+    interval never changes detector decisions or cumulative counters.
+    """
+
+    stream_epoch: int
+    state: DetectorState
+    processed_frame_count: int
+    learned_noise_floor_rms: float
+    cumulative_counters: DetectorDiagnosticCounters
+    interval_counters: DetectorDiagnosticCounters
+    closest_armed_block: ArmedBlockDiagnostic | None
+    buffered_candidate_start_record_count: int
+
+
 @dataclass
 class _PendingCandidate:
     onset_frame_index: int
@@ -393,6 +466,11 @@ class _CircularAudioHistory:
 class StreamingTapDetector:
     """Pure fixed-block streaming detector with exact centered extraction."""
 
+    _CANDIDATE_START_DIAGNOSTIC_CAPACITY = 64
+    _DIAGNOSTIC_COUNTER_NAMES = tuple(
+        DetectorDiagnosticCounters.__dataclass_fields__
+    )
+
     def __init__(self, config: StreamingDetectorConfig | None = None) -> None:
         self.config = config or StreamingDetectorConfig()
         self._history = _CircularAudioHistory(
@@ -450,13 +528,50 @@ class StreamingTapDetector:
     def noise_floor_rms(self) -> float:
         return float(self._noise_floor_rms)
 
+    def diagnostic_snapshot(self) -> DetectorDiagnosticSnapshot:
+        """Return immutable diagnostics without consuming interval state."""
+
+        return DetectorDiagnosticSnapshot(
+            stream_epoch=self._stream_epoch,
+            state=self._state,
+            processed_frame_count=self._processed_frame_count,
+            learned_noise_floor_rms=float(self._noise_floor_rms),
+            cumulative_counters=self._frozen_diagnostic_counters(
+                self._diagnostic_cumulative_counters
+            ),
+            interval_counters=self._frozen_diagnostic_counters(
+                self._diagnostic_interval_counters
+            ),
+            closest_armed_block=self._diagnostic_interval_closest_block,
+            buffered_candidate_start_record_count=len(
+                self._candidate_start_diagnostics
+            ),
+        )
+
+    def consume_diagnostic_interval(self) -> DetectorDiagnosticSnapshot:
+        """Return and reset bounded interval diagnostics only."""
+
+        snapshot = self.diagnostic_snapshot()
+        self._diagnostic_interval_counters = self._new_diagnostic_counters()
+        self._diagnostic_interval_closest_block = None
+        return snapshot
+
+    def drain_candidate_start_diagnostics(
+        self,
+    ) -> tuple[CandidateStartDiagnostic, ...]:
+        """Return pending candidate-start records in order and clear them."""
+
+        records = tuple(self._candidate_start_diagnostics)
+        self._candidate_start_diagnostics.clear()
+        return records
+
     def reset(self) -> None:
         """Return to the same deterministic state as a new detector."""
 
         self._stream_epoch = 0
         self._initialize_epoch()
 
-    def notify_discontinuity(self) -> None:
+    def notify_discontinuity(self) -> DetectorDiagnosticSnapshot:
         """Start a new continuous epoch after a known stream gap.
 
         Absolute frame indexes are relative to a continuous epoch because a
@@ -465,8 +580,14 @@ class StreamingTapDetector:
         joining samples across that unknown gap.
         """
 
+        if self._candidate is not None:
+            self._increment_diagnostic(
+                "candidates_discarded_by_discontinuity"
+            )
+        ended_epoch = self.diagnostic_snapshot()
         self._stream_epoch += 1
         self._initialize_epoch()
+        return ended_epoch
 
     def process_chunk(self, samples: Any) -> tuple[DetectionResult, ...]:
         """Process one sequential chunk without depending on its partitioning.
@@ -509,6 +630,12 @@ class StreamingTapDetector:
         self._noise_floor_rms = float(self.config.minimum_noise_floor_rms)
         self._candidate: _PendingCandidate | None = None
         self._refractory_until_frame_index_exclusive: int | None = None
+        self._diagnostic_cumulative_counters = self._new_diagnostic_counters()
+        self._diagnostic_interval_counters = self._new_diagnostic_counters()
+        self._diagnostic_interval_closest_block: ArmedBlockDiagnostic | None = None
+        self._candidate_start_diagnostics: deque[CandidateStartDiagnostic] = deque(
+            maxlen=self._CANDIDATE_START_DIAGNOSTIC_CAPACITY
+        )
 
     def _process_fixed_block(
         self, block: np.ndarray[Any, Any]
@@ -519,8 +646,10 @@ class StreamingTapDetector:
         block_end = self._processed_frame_count
 
         block_rms, block_peak, crest_factor, frame_peaks = _block_metrics(block)
+        self._increment_diagnostic("fixed_blocks_processed_total")
 
         if self._state is DetectorState.LEARNING:
+            self._increment_diagnostic("learning_suppressed_blocks")
             self._learning_power_sum += block_rms * block_rms * block.shape[0]
             self._learning_frame_count += int(block.shape[0])
             if self._learning_frame_count >= self.config.startup_learning_frames:
@@ -536,6 +665,7 @@ class StreamingTapDetector:
         if self._state is DetectorState.REFRACTORY:
             assert self._refractory_until_frame_index_exclusive is not None
             if block_start < self._refractory_until_frame_index_exclusive:
+                self._increment_diagnostic("refractory_suppressed_blocks")
                 if block_end >= self._refractory_until_frame_index_exclusive:
                     self._state = DetectorState.ARMED
                     self._refractory_until_frame_index_exclusive = None
@@ -544,9 +674,11 @@ class StreamingTapDetector:
             self._refractory_until_frame_index_exclusive = None
 
         if self._state is DetectorState.COLLECTING:
+            self._increment_diagnostic("collecting_blocks")
             result = self._advance_candidate()
             return [] if result is None else [result]
 
+        self._increment_diagnostic("armed_evaluated_blocks")
         rms_threshold = max(
             float(self.config.minimum_onset_rms),
             self._noise_floor_rms
@@ -557,11 +689,37 @@ class StreamingTapDetector:
             self._noise_floor_rms
             * float(self.config.onset_peak_noise_multiplier),
         )
-        triggered = (
-            block_rms >= rms_threshold
-            and block_peak >= peak_threshold
-            and crest_factor >= float(self.config.minimum_crest_factor)
+        crest_threshold = float(self.config.minimum_crest_factor)
+        rms_passed = block_rms >= rms_threshold
+        peak_passed = block_peak >= peak_threshold
+        crest_passed = crest_factor >= crest_threshold
+        self._increment_diagnostic(
+            "rms_pass_count" if rms_passed else "rms_fail_count"
         )
+        self._increment_diagnostic(
+            "peak_pass_count" if peak_passed else "peak_fail_count"
+        )
+        self._increment_diagnostic(
+            "crest_pass_count" if crest_passed else "crest_fail_count"
+        )
+        gate_diagnostic = self._armed_block_diagnostic(
+            block_start=block_start,
+            block_end=block_end,
+            block_rms=block_rms,
+            block_peak=block_peak,
+            crest_factor=crest_factor,
+            rms_threshold=rms_threshold,
+            peak_threshold=peak_threshold,
+            crest_threshold=crest_threshold,
+        )
+        current_closest = self._diagnostic_interval_closest_block
+        if (
+            current_closest is None
+            or gate_diagnostic.all_gates_score > current_closest.all_gates_score
+        ):
+            self._diagnostic_interval_closest_block = gate_diagnostic
+
+        triggered = rms_passed and peak_passed and crest_passed
         if not triggered:
             alpha = float(self.config.noise_floor_adaptation_alpha)
             self._noise_floor_rms = max(
@@ -569,6 +727,8 @@ class StreamingTapDetector:
                 float((1.0 - alpha) * self._noise_floor_rms + alpha * block_rms),
             )
             return []
+
+        self._increment_diagnostic("all_gates_pass_count")
 
         crossing_offsets = np.flatnonzero(frame_peaks >= peak_threshold)
         if crossing_offsets.size == 0:
@@ -592,6 +752,14 @@ class StreamingTapDetector:
                 "onset_rms_threshold": float(rms_threshold),
                 "onset_peak_threshold": float(peak_threshold),
             },
+        )
+        self._increment_diagnostic("onset_candidates_started")
+        self._append_candidate_start_diagnostic(
+            CandidateStartDiagnostic(
+                stream_epoch=self._stream_epoch,
+                onset_frame_index=onset,
+                block=gate_diagnostic,
+            )
         )
         self._state = DetectorState.COLLECTING
         result = self._advance_candidate()
@@ -803,10 +971,71 @@ class StreamingTapDetector:
             state_before=DetectorState.COLLECTING,
             state_after=DetectorState.REFRACTORY,
         )
+        self._increment_diagnostic(
+            "completed_detections"
+            if status == "detected"
+            else "completed_rejections"
+        )
         self._refractory_until_frame_index_exclusive = refractory_until
         self._candidate = None
         self._state = DetectorState.REFRACTORY
         return result
+
+    @classmethod
+    def _new_diagnostic_counters(cls) -> dict[str, int]:
+        return {name: 0 for name in cls._DIAGNOSTIC_COUNTER_NAMES}
+
+    @staticmethod
+    def _frozen_diagnostic_counters(
+        counters: dict[str, int],
+    ) -> DetectorDiagnosticCounters:
+        return DetectorDiagnosticCounters(**counters)
+
+    def _increment_diagnostic(self, name: str) -> None:
+        self._diagnostic_cumulative_counters[name] += 1
+        self._diagnostic_interval_counters[name] += 1
+
+    def _armed_block_diagnostic(
+        self,
+        *,
+        block_start: int,
+        block_end: int,
+        block_rms: float,
+        block_peak: float,
+        crest_factor: float,
+        rms_threshold: float,
+        peak_threshold: float,
+        crest_threshold: float,
+    ) -> ArmedBlockDiagnostic:
+        rms_ratio = _nonnegative_gate_ratio(block_rms, rms_threshold)
+        peak_ratio = _nonnegative_gate_ratio(block_peak, peak_threshold)
+        crest_ratio = _nonnegative_gate_ratio(crest_factor, crest_threshold)
+        return ArmedBlockDiagnostic(
+            stream_epoch=self._stream_epoch,
+            block_start_frame_index=block_start,
+            block_end_frame_index_exclusive=block_end,
+            block_rms=float(block_rms),
+            block_peak_absolute=float(block_peak),
+            block_crest_factor=float(crest_factor),
+            learned_noise_floor_rms=float(self._noise_floor_rms),
+            required_rms_threshold=float(rms_threshold),
+            required_peak_threshold=float(peak_threshold),
+            required_crest_threshold=float(crest_threshold),
+            rms_ratio=rms_ratio,
+            peak_ratio=peak_ratio,
+            crest_ratio=crest_ratio,
+            all_gates_score=float(min(rms_ratio, peak_ratio, crest_ratio)),
+        )
+
+    def _append_candidate_start_diagnostic(
+        self, record: CandidateStartDiagnostic
+    ) -> None:
+        if (
+            len(self._candidate_start_diagnostics)
+            == self._CANDIDATE_START_DIAGNOSTIC_CAPACITY
+        ):
+            self._increment_diagnostic("candidate_start_records_dropped")
+        self._candidate_start_diagnostics.append(record)
 
 
 def _block_metrics(
@@ -822,6 +1051,18 @@ def _block_metrics(
     else:
         crest_factor = float(block_peak / block_rms)
     return block_rms, block_peak, crest_factor, frame_peaks
+
+
+def _nonnegative_gate_ratio(value: float, threshold: float) -> float:
+    """Return a deterministic diagnostic ratio without changing gate logic."""
+
+    if threshold <= 0.0 or not math.isfinite(threshold):
+        return 0.0
+    if math.isnan(value) or value < 0.0:
+        return 0.0
+    if math.isinf(value):
+        return math.inf
+    return float(value / threshold)
 
 
 def _strongest_transient_center(

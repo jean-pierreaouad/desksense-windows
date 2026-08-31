@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 import desksense.realtime as realtime
-from desksense.streaming import DetectionResult, DetectorState
+from desksense.streaming import DetectionResult, DetectorState, StreamingTapDetector
 
 
 BASELINE_PATH = (
@@ -379,7 +379,7 @@ def _timing_fixture(
     )
 
 
-def test_result_timing_composes_same_domain_durations_not_clock_origins() -> None:
+def test_result_timing_keeps_raw_components_without_combined_latency() -> None:
     timing = _timing_fixture(stream_time=82_341.0)
 
     assert timing["estimated_onset_adc_time_seconds"] == pytest.approx(10.0)
@@ -387,24 +387,23 @@ def test_result_timing_composes_same_domain_durations_not_clock_origins() -> Non
     assert timing["portaudio_onset_to_callback_seconds"] == pytest.approx(0.1)
     assert timing["portaudio_center_to_callback_seconds"] == pytest.approx(0.075)
     assert timing["python_callback_to_result_seconds"] == pytest.approx(0.02)
-    assert timing["approximate_onset_to_result_seconds"] == pytest.approx(0.12)
-    assert timing["approximate_center_to_result_seconds"] == pytest.approx(0.095)
+    assert "approximate_onset_to_result_seconds" not in timing
+    assert "approximate_center_to_result_seconds" not in timing
     assert timing["stream_time_at_result_seconds"] == pytest.approx(82_341.0)
 
 
-def test_huge_unrelated_stream_time_cannot_change_derived_timing() -> None:
+def test_huge_unrelated_stream_time_cannot_create_combined_timing() -> None:
     ordinary = _timing_fixture(stream_time=10.2)
     unrelated = _timing_fixture(stream_time=82_341_000_000.0)
 
-    for key in (
-        "approximate_onset_to_result_seconds",
-        "approximate_center_to_result_seconds",
-    ):
-        assert unrelated[key] == pytest.approx(ordinary[key])
-        assert unrelated[key] < 1.0
+    for timing in (ordinary, unrelated):
+        assert "approximate_onset_to_result_seconds" not in timing
+        assert "approximate_center_to_result_seconds" not in timing
+        assert timing["portaudio_onset_to_callback_seconds"] == pytest.approx(0.1)
+        assert timing["python_callback_to_result_seconds"] == pytest.approx(0.02)
 
 
-def test_missing_callback_current_time_makes_derived_timing_unavailable() -> None:
+def test_missing_callback_current_time_makes_portaudio_durations_unavailable() -> None:
     packet = replace(
         _packet(),
         callback_current_time_seconds=None,
@@ -412,16 +411,16 @@ def test_missing_callback_current_time_makes_derived_timing_unavailable() -> Non
     )
     timing = _timing_fixture(packet=packet)
 
-    assert timing["approximate_onset_to_result_seconds"] is None
-    assert timing["approximate_center_to_result_seconds"] is None
+    assert timing["portaudio_onset_to_callback_seconds"] is None
+    assert timing["portaudio_center_to_callback_seconds"] is None
 
 
 def test_missing_onset_mapping_does_not_hide_valid_center_mapping() -> None:
     timing = _timing_fixture(result=_candidate_result(onset=3_000, center=1_200))
 
     assert timing["estimated_onset_adc_time_seconds"] is None
-    assert timing["approximate_onset_to_result_seconds"] is None
-    assert timing["approximate_center_to_result_seconds"] == pytest.approx(0.095)
+    assert timing["portaudio_onset_to_callback_seconds"] is None
+    assert timing["portaudio_center_to_callback_seconds"] == pytest.approx(0.075)
 
 
 def test_missing_center_mapping_makes_only_center_timing_unavailable() -> None:
@@ -431,13 +430,13 @@ def test_missing_center_mapping_makes_only_center_timing_unavailable() -> None:
     )
     timing = _timing_fixture(result=result)
 
-    assert timing["approximate_onset_to_result_seconds"] == pytest.approx(0.12)
+    assert timing["portaudio_onset_to_callback_seconds"] == pytest.approx(0.1)
     assert timing["estimated_center_adc_time_seconds"] is None
-    assert timing["approximate_center_to_result_seconds"] is None
+    assert timing["portaudio_center_to_callback_seconds"] is None
 
 
 @pytest.mark.parametrize("callback_time", [float("nan"), float("inf")])
-def test_nonfinite_portaudio_callback_time_makes_derived_timing_unavailable(
+def test_nonfinite_portaudio_callback_time_makes_portaudio_durations_unavailable(
     callback_time: float,
 ) -> None:
     packet = replace(
@@ -447,8 +446,8 @@ def test_nonfinite_portaudio_callback_time_makes_derived_timing_unavailable(
     )
     timing = _timing_fixture(packet=packet)
 
-    assert timing["approximate_onset_to_result_seconds"] is None
-    assert timing["approximate_center_to_result_seconds"] is None
+    assert timing["portaudio_onset_to_callback_seconds"] is None
+    assert timing["portaudio_center_to_callback_seconds"] is None
 
 
 def test_callback_time_earlier_than_adc_estimates_fails_safely() -> None:
@@ -459,16 +458,16 @@ def test_callback_time_earlier_than_adc_estimates_fails_safely() -> None:
     )
     timing = _timing_fixture(packet=packet)
 
-    assert timing["approximate_onset_to_result_seconds"] is None
-    assert timing["approximate_center_to_result_seconds"] is None
+    assert timing["portaudio_onset_to_callback_seconds"] is None
+    assert timing["portaudio_center_to_callback_seconds"] is None
 
 
 def test_result_timestamp_before_callback_arrival_fails_safely() -> None:
     timing = _timing_fixture(result_available_ns=999_000_000)
 
     assert timing["python_callback_to_result_seconds"] is None
-    assert timing["approximate_onset_to_result_seconds"] is None
-    assert timing["approximate_center_to_result_seconds"] is None
+    assert "approximate_onset_to_result_seconds" not in timing
+    assert "approximate_center_to_result_seconds" not in timing
 
 
 def test_queue_dwell_and_detector_lookahead_timing_are_unchanged() -> None:
@@ -478,7 +477,7 @@ def test_queue_dwell_and_detector_lookahead_timing_are_unchanged() -> None:
     assert timing["detector_latency_seconds"] == pytest.approx(0.1)
 
 
-def test_cli_omits_unavailable_approximate_timing() -> None:
+def test_cli_omits_combined_timing_even_if_bogus_value_is_supplied() -> None:
     from desksense.cli import format_live_sensing_event
 
     timing = _timing_fixture(
@@ -490,6 +489,8 @@ def test_cli_omits_unavailable_approximate_timing() -> None:
         ),
         stream_time=82_341.0,
     )
+    timing["approximate_onset_to_result_seconds"] = 84_714.0
+    timing["approximate_center_to_result_seconds"] = 84_713.9
     event = realtime.LiveSensingEvent(
         event_type="detection",
         status="detected",
@@ -507,7 +508,7 @@ def test_cli_omits_unavailable_approximate_timing() -> None:
     rendered = format_live_sensing_event(event)
 
     assert "onset-to-result" not in rendered
-    assert "82341" not in rendered
+    assert "84714000" not in rendered
     assert "queue dwell=5.00 ms" in rendered
     assert "detector lookahead=100.00 ms" in rendered
 
@@ -1275,4 +1276,118 @@ def test_live_runner_calls_no_audio_or_report_persistence(
         event_handler=lambda event: None,
         detector=RecordingDetector(),
         stop_requested=lambda: True,
+    )
+
+
+def test_live_diagnostics_emit_candidate_start_summary_then_detection() -> None:
+    backend = FakeRealtimeBackend()
+    audio = np.zeros((72_000, 2), dtype=np.float32)
+    audio[40_003] = (0.25, 0.05)
+    backend.callback_packets = [
+        (audio, _time_info(adc=10.0, current=11.5), FakeStatus())
+    ]
+    detector = StreamingTapDetector()
+    events: list[realtime.LiveSensingEvent] = []
+
+    realtime.run_live_sensing(
+        backend,
+        device_index=backend.device_index,
+        baseline_path=BASELINE_PATH,
+        event_handler=events.append,
+        detector=detector,
+        diagnostics_enabled=True,
+        stop_requested=lambda: detector.processed_frame_count > 0,
+    )
+
+    statuses = [(event.event_type, event.status) for event in events]
+    start_index = statuses.index(("diagnostic", "candidate_started"))
+    summary_index = statuses.index(("diagnostic", "summary"))
+    detection_index = statuses.index(("detection", "detected"))
+    assert start_index < detection_index
+    assert summary_index < detection_index
+
+    candidate_start = events[start_index]
+    assert candidate_start.onset_frame_index == 40_003
+    gate = candidate_start.details["gate_block"]
+    assert gate["block_start_frame_index"] == 39_840
+    assert gate["block_end_frame_index_exclusive"] == 40_080
+    assert gate["all_gates_score"] >= 1.0
+
+    diagnostic_summary = events[summary_index]
+    counts = diagnostic_summary.details["interval_counters"]
+    assert counts["onset_candidates_started"] == 1
+    assert counts["completed_detections"] == 1
+    assert counts["all_gates_pass_count"] == 1
+    transport = diagnostic_summary.details["transport"]
+    assert transport["callback_count"] == 1
+    assert transport["callback_frames"] == 72_000
+    assert transport["queue_high_water_mark"] == 1
+    assert transport["dropped_callback_count"] == 0
+
+
+def test_live_diagnostics_are_opt_in() -> None:
+    backend = FakeRealtimeBackend()
+    audio = np.zeros((72_000, 2), dtype=np.float32)
+    audio[40_003] = (0.25, 0.05)
+    backend.callback_packets = [(audio, _time_info(), FakeStatus())]
+    detector = StreamingTapDetector()
+    events: list[realtime.LiveSensingEvent] = []
+
+    realtime.run_live_sensing(
+        backend,
+        device_index=backend.device_index,
+        baseline_path=BASELINE_PATH,
+        event_handler=events.append,
+        detector=detector,
+        stop_requested=lambda: detector.processed_frame_count > 0,
+    )
+
+    assert not any(event.event_type == "diagnostic" for event in events)
+    assert any(event.event_type == "detection" for event in events)
+
+
+def test_diagnostic_discontinuity_reports_pending_candidate_discard() -> None:
+    backend = FakeRealtimeBackend()
+    first = np.zeros((40_240, 2), dtype=np.float32)
+    first[40_003] = (0.25, 0.05)
+    second = np.zeros((240, 2), dtype=np.float32)
+    backend.callback_packets = [
+        (first, _time_info(), FakeStatus()),
+        (
+            second,
+            _time_info(adc=11.0, current=11.005),
+            FakeStatus(input_overflow=True),
+        ),
+    ]
+    detector = StreamingTapDetector()
+    events: list[realtime.LiveSensingEvent] = []
+
+    realtime.run_live_sensing(
+        backend,
+        device_index=backend.device_index,
+        baseline_path=BASELINE_PATH,
+        event_handler=events.append,
+        detector=detector,
+        diagnostics_enabled=True,
+        stop_requested=lambda: any(
+            event.event_type == "discontinuity" for event in events
+        ),
+    )
+
+    discontinuity = next(
+        event for event in events if event.event_type == "discontinuity"
+    )
+    ended = discontinuity.details["ended_detector_epoch"]
+    assert ended["detector_state"] == "collecting"
+    assert ended["cumulative_counters"]["onset_candidates_started"] == 1
+    assert (
+        ended["cumulative_counters"][
+            "candidates_discarded_by_discontinuity"
+        ]
+        == 1
+    )
+    assert detector.stream_epoch == 1
+    assert (
+        detector.diagnostic_snapshot().cumulative_counters.fixed_blocks_processed_total
+        == 1
     )

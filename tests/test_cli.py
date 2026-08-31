@@ -215,6 +215,23 @@ def test_sense_arguments_parse() -> None:
     assert args.record is False
     assert args.characterize is False
     assert args.collect_dataset is False
+    assert args.sense_diagnostics is False
+
+
+def test_sense_diagnostics_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--sense",
+            "--sense-diagnostics",
+            "--device",
+            "18",
+            "--baseline",
+            "baseline.json",
+        ]
+    )
+
+    assert args.sense is True
+    assert args.sense_diagnostics is True
 
 
 @pytest.mark.parametrize(
@@ -320,9 +337,16 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
         device_index,
         baseline_path,
         event_handler,
+        diagnostics_enabled,
     ):
         calls.append(
-            (audio_backend, device_index, baseline_path, event_handler)
+            (
+                audio_backend,
+                device_index,
+                baseline_path,
+                event_handler,
+                diagnostics_enabled,
+            )
         )
         event_handler(
             cli.LiveSensingEvent(
@@ -352,8 +376,41 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
     assert "Armed (detector epoch 0)." in captured.out
     assert calls == [
         "load_backend",
-        (backend, 18, baseline_path, cli._print_live_sensing_event),
+        (backend, 18, baseline_path, cli._print_live_sensing_event, False),
     ]
+
+
+def test_sense_diagnostics_requires_sense(capsys) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--sense-diagnostics"])
+
+    assert "--sense-diagnostics requires --sense" in capsys.readouterr().err
+
+
+def test_sense_cli_passes_opt_in_diagnostics(monkeypatch) -> None:
+    received: list[bool] = []
+    monkeypatch.setattr(cli, "_load_audio_backend", lambda: object())
+
+    def fake_run(*args, **kwargs):
+        received.append(kwargs["diagnostics_enabled"])
+        return object()
+
+    monkeypatch.setattr(cli, "run_live_sensing", fake_run)
+
+    assert (
+        cli.main(
+            [
+                "--sense",
+                "--sense-diagnostics",
+                "--device",
+                "18",
+                "--baseline",
+                "baseline.json",
+            ]
+        )
+        == 0
+    )
+    assert received == [True]
 
 
 def test_sense_cli_reports_backend_load_failure_without_running(
@@ -466,7 +523,7 @@ def test_live_detection_event_formats_db_margin_and_timing_not_probability() -> 
         onset_frame_index=40_000,
         center_frame_index=40_123,
         timing={
-            "approximate_onset_to_result_seconds": 0.112,
+            "approximate_onset_to_result_seconds": 84_714.0,
             "queue_dwell_seconds": 0.003,
             "detector_latency_seconds": 0.1,
         },
@@ -479,7 +536,8 @@ def test_live_detection_event_formats_db_margin_and_timing_not_probability() -> 
     assert "threshold=+0.125000 dB" in rendered
     assert "margin=1.125000 dB" in rendered
     assert "epoch=2; onset=40000; center=40123" in rendered
-    assert "approx. onset-to-result=112.00 ms" in rendered
+    assert "onset-to-result" not in rendered
+    assert "84714000" not in rendered
     assert "queue dwell=3.00 ms" in rendered
     assert "detector lookahead=100.00 ms" in rendered
     assert "probability" not in rendered.lower()
@@ -517,6 +575,82 @@ def test_live_rejection_and_discontinuity_event_formatting() -> None:
     )
     assert "dropped callbacks=2, dropped frames=960" in discontinuity_text
     assert "Detector reset to learning (epoch 2)" in discontinuity_text
+
+
+def test_live_candidate_start_and_summary_diagnostic_formatting() -> None:
+    gate = {
+        "block_start_frame_index": 40_000,
+        "block_end_frame_index_exclusive": 40_240,
+        "block_rms": 0.01,
+        "block_peak_absolute": 0.25,
+        "block_crest_factor": 25.0,
+        "learned_noise_floor_rms": 0.0005,
+        "required_rms_threshold": 0.0015,
+        "required_peak_threshold": 0.003,
+        "required_crest_threshold": 3.0,
+        "rms_ratio": 6.666666,
+        "peak_ratio": 83.333333,
+        "crest_ratio": 8.333333,
+        "all_gates_score": 6.666666,
+    }
+    candidate = cli.LiveSensingEvent(
+        event_type="diagnostic",
+        status="candidate_started",
+        message="candidate",
+        stream_epoch=0,
+        onset_frame_index=40_003,
+        details={"gate_block": gate},
+    )
+    summary = cli.LiveSensingEvent(
+        event_type="diagnostic",
+        status="summary",
+        message="summary",
+        stream_epoch=0,
+        details={
+            "detector_state": "armed",
+            "learned_noise_floor_rms": 0.0005,
+            "interval_counters": {
+                "fixed_blocks_processed_total": 200,
+                "learning_suppressed_blocks": 0,
+                "armed_evaluated_blocks": 150,
+                "collecting_blocks": 20,
+                "refractory_suppressed_blocks": 30,
+                "rms_pass_count": 2,
+                "rms_fail_count": 148,
+                "peak_pass_count": 1,
+                "peak_fail_count": 149,
+                "crest_pass_count": 10,
+                "crest_fail_count": 140,
+                "all_gates_pass_count": 1,
+                "onset_candidates_started": 1,
+                "completed_detections": 1,
+                "completed_rejections": 0,
+            },
+            "closest_armed_block": gate,
+            "transport": {
+                "callback_count": 50,
+                "callback_frames": 48_000,
+                "queue_high_water_mark": 2,
+                "dropped_callback_count": 0,
+                "dropped_frame_count": 0,
+                "discontinuity_count": 0,
+                "current_packet_portaudio_status_flags": (),
+            },
+        },
+    )
+
+    candidate_text = cli.format_live_sensing_event(candidate)
+    summary_text = cli.format_live_sensing_event(summary)
+
+    assert "Diagnostic candidate start" in candidate_text
+    assert "onset=40003" in candidate_text
+    assert "block=[40000:40240)" in candidate_text
+    assert "ratio=" in candidate_text
+    assert "Sense diagnostics: epoch=0; state=armed" in summary_text
+    assert "RMS=2/148" in summary_text
+    assert "all-pass=1, starts=1, detected=1, rejected=0" in summary_text
+    assert "callbacks=50, frames=48000" in summary_text
+    assert "queue high-water=2" in summary_text
 
 
 @pytest.mark.parametrize(

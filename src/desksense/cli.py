@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -129,6 +130,14 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--sense-diagnostics",
+        action="store_true",
+        help=(
+            "with --sense, print candidate-start evidence and low-rate detector "
+            "decision summaries; no audio is saved"
+        ),
+    )
+    parser.add_argument(
         "--samples-per-zone",
         type=_positive_integer,
         default=None,
@@ -192,6 +201,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.sense_diagnostics and not args.sense:
+        parser.error("--sense-diagnostics requires --sense")
 
     if args.save_baseline is not None and args.freeze_baseline is None:
         parser.error("--save-baseline requires --freeze-baseline SESSION")
@@ -507,6 +519,7 @@ def _run_sense_cli(args: argparse.Namespace) -> int:
             device_index=args.device,
             baseline_path=args.baseline,
             event_handler=_print_live_sensing_event,
+            diagnostics_enabled=args.sense_diagnostics,
         )
     except KeyboardInterrupt:
         print("\nDeskSense live sensing interrupted.", file=sys.stderr)
@@ -575,6 +588,85 @@ def format_live_sensing_event(event: LiveSensingEvent) -> str:
             f"(epoch {_format_optional_index(event.stream_epoch)})."
         )
 
+    if event.event_type == "diagnostic" and event.status == "candidate_started":
+        gate = event.details.get("gate_block", {})
+        return (
+            "Diagnostic candidate start: "
+            f"epoch={_format_optional_index(event.stream_epoch)}; "
+            f"onset={_format_optional_index(event.onset_frame_index)}; "
+            f"block=[{gate.get('block_start_frame_index', '?')}:"
+            f"{gate.get('block_end_frame_index_exclusive', '?')}); "
+            f"RMS={_format_diagnostic_float(gate.get('block_rms'))} "
+            f"(threshold={_format_diagnostic_float(gate.get('required_rms_threshold'))}, "
+            f"ratio={_format_diagnostic_float(gate.get('rms_ratio'))}); "
+            f"peak={_format_diagnostic_float(gate.get('block_peak_absolute'))} "
+            f"(threshold={_format_diagnostic_float(gate.get('required_peak_threshold'))}, "
+            f"ratio={_format_diagnostic_float(gate.get('peak_ratio'))}); "
+            f"crest={_format_diagnostic_float(gate.get('block_crest_factor'))} "
+            f"(threshold={_format_diagnostic_float(gate.get('required_crest_threshold'))}, "
+            f"ratio={_format_diagnostic_float(gate.get('crest_ratio'))}); "
+            f"floor={_format_diagnostic_float(gate.get('learned_noise_floor_rms'))}."
+        )
+
+    if event.event_type == "diagnostic" and event.status == "summary":
+        details = event.details
+        counts = details.get("interval_counters", {})
+        closest = details.get("closest_armed_block")
+        transport = details.get("transport", {})
+        closest_text = "closest armed block=none"
+        if isinstance(closest, dict):
+            closest_text = (
+                "closest armed block="
+                f"[{closest.get('block_start_frame_index', '?')}:"
+                f"{closest.get('block_end_frame_index_exclusive', '?')}); "
+                f"score={_format_diagnostic_float(closest.get('all_gates_score'))}; "
+                f"ratios RMS/peak/crest="
+                f"{_format_diagnostic_float(closest.get('rms_ratio'))}/"
+                f"{_format_diagnostic_float(closest.get('peak_ratio'))}/"
+                f"{_format_diagnostic_float(closest.get('crest_ratio'))}"
+            )
+        return "\n".join(
+            [
+                (
+                    "Sense diagnostics: "
+                    f"epoch={_format_optional_index(event.stream_epoch)}; "
+                    f"state={details.get('detector_state', 'unknown')}; "
+                    f"floor={_format_diagnostic_float(details.get('learned_noise_floor_rms'))}"
+                ),
+                (
+                    "  interval blocks: "
+                    f"total={counts.get('fixed_blocks_processed_total', 0)}, "
+                    f"learning={counts.get('learning_suppressed_blocks', 0)}, "
+                    f"armed={counts.get('armed_evaluated_blocks', 0)}, "
+                    f"collecting={counts.get('collecting_blocks', 0)}, "
+                    f"refractory={counts.get('refractory_suppressed_blocks', 0)}"
+                ),
+                (
+                    "  gate pass/fail: "
+                    f"RMS={counts.get('rms_pass_count', 0)}/"
+                    f"{counts.get('rms_fail_count', 0)}, "
+                    f"peak={counts.get('peak_pass_count', 0)}/"
+                    f"{counts.get('peak_fail_count', 0)}, "
+                    f"crest={counts.get('crest_pass_count', 0)}/"
+                    f"{counts.get('crest_fail_count', 0)}; "
+                    f"all-pass={counts.get('all_gates_pass_count', 0)}, "
+                    f"starts={counts.get('onset_candidates_started', 0)}, "
+                    f"detected={counts.get('completed_detections', 0)}, "
+                    f"rejected={counts.get('completed_rejections', 0)}"
+                ),
+                f"  {closest_text}",
+                (
+                    "  transport: "
+                    f"callbacks={transport.get('callback_count', 0)}, "
+                    f"frames={transport.get('callback_frames', 0)}, "
+                    f"queue high-water={transport.get('queue_high_water_mark', 0)}, "
+                    f"dropped callbacks={transport.get('dropped_callback_count', 0)}, "
+                    f"dropped frames={transport.get('dropped_frame_count', 0)}, "
+                    f"discontinuities={transport.get('discontinuity_count', 0)}, "
+                    f"PortAudio status={_format_reason_codes(transport.get('current_packet_portaudio_status_flags', ())) if transport.get('current_packet_portaudio_status_flags') else 'none'}"
+                ),
+            ]
+        )
     if event.event_type == "detection" and event.status == "detected":
         timing_parts = _format_live_timing(event.timing)
         timing_suffix = f"; {timing_parts}" if timing_parts else ""
@@ -607,12 +699,6 @@ def _print_live_sensing_event(event: LiveSensingEvent) -> None:
 
 def _format_live_timing(timing: dict[str, Any] | Any) -> str:
     parts: list[str] = []
-    approximate = _format_optional_milliseconds(
-        timing.get("approximate_onset_to_result_seconds"),
-        unavailable=None,
-    )
-    if approximate is not None:
-        parts.append(f"approx. onset-to-result={approximate}")
     queue_dwell = _format_optional_milliseconds(
         timing.get("queue_dwell_seconds"), unavailable=None
     )
@@ -624,6 +710,16 @@ def _format_live_timing(timing: dict[str, Any] | Any) -> str:
     if detector_latency is not None:
         parts.append(f"detector lookahead={detector_latency}")
     return "; ".join(parts)
+
+
+def _format_diagnostic_float(value: Any) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return "unavailable"
+    if not math.isfinite(numeric):
+        return "unavailable"
+    return f"{numeric:.6g}"
 
 
 def _format_optional_milliseconds(

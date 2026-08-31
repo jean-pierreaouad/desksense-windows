@@ -14,7 +14,7 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +25,9 @@ from desksense.features import PRIMARY_FEATURE_NAME, extract_two_channel_feature
 from desksense.frozen_baseline import FrozenBaselineError, load_frozen_baseline
 from desksense.inference import classify_peak_ratio_value
 from desksense.streaming import (
+    CandidateStartDiagnostic,
     DetectionResult,
+    DetectorDiagnosticSnapshot,
     DetectorState,
     StreamingDetectorConfig,
     StreamingTapDetector,
@@ -38,6 +40,7 @@ LIVE_DTYPE = "float32"
 LIVE_TAP_WINDOW_FRAMES = 9_600
 DEFAULT_QUEUE_CAPACITY_PACKETS = 8
 DEFAULT_QUEUE_POLL_TIMEOUT_SECONDS = 0.1
+DEFAULT_DIAGNOSTIC_REPORTING_SECONDS = 1.0
 
 _STATUS_FLAG_NAMES = (
     "input_underflow",
@@ -60,13 +63,15 @@ class RealtimeSensingError(RuntimeError):
 class RealtimeSensingConfig:
     """Reviewable Phase 3A.2a transport settings.
 
-    Eight queued callback packets and a 100 ms consumer poll are initial
-    engineering values.  Their physical suitability has not yet been measured
-    on the Lenovo WDM-KS endpoint.
+    Eight queued callback packets, a 100 ms consumer poll, and a one-second
+    opt-in diagnostic reporting interval are initial engineering values. Their
+    physical suitability has not yet been measured on the Lenovo WDM-KS
+    endpoint.
     """
 
     queue_capacity_packets: int = DEFAULT_QUEUE_CAPACITY_PACKETS
     queue_poll_timeout_seconds: float = DEFAULT_QUEUE_POLL_TIMEOUT_SECONDS
+    diagnostic_reporting_seconds: float = DEFAULT_DIAGNOSTIC_REPORTING_SECONDS
 
     def __post_init__(self) -> None:
         if (
@@ -84,6 +89,16 @@ class RealtimeSensingConfig:
         if not math.isfinite(timeout) or timeout <= 0.0:
             raise ValueError(
                 "Realtime queue poll timeout must be positive and finite."
+            )
+        try:
+            diagnostic_interval = float(self.diagnostic_reporting_seconds)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError(
+                "Realtime diagnostic reporting interval must be positive and finite."
+            ) from error
+        if not math.isfinite(diagnostic_interval) or diagnostic_interval <= 0.0:
+            raise ValueError(
+                "Realtime diagnostic reporting interval must be positive and finite."
             )
 
 
@@ -503,6 +518,7 @@ def run_live_sensing(
     event_handler: Callable[[LiveSensingEvent], None],
     config: RealtimeSensingConfig | None = None,
     detector: StreamingTapDetector | None = None,
+    diagnostics_enabled: bool = False,
     clock_ns: Callable[[], int] = time.perf_counter_ns,
     stop_requested: Callable[[], bool] | None = None,
 ) -> LiveSensingSummary:
@@ -551,6 +567,16 @@ def run_live_sensing(
     epoch_submitted_frames = 0
     armed_announced_epoch: int | None = None
     timing_spans: deque[_TimingSpan] = deque()
+    diagnostic_interval_frames = max(
+        1,
+        int(
+            round(
+                float(live_detector.config.sample_rate_hz)
+                * float(settings.diagnostic_reporting_seconds)
+            )
+        ),
+    )
+    next_diagnostic_report_frame = diagnostic_interval_frames
 
     try:
         try:
@@ -612,11 +638,27 @@ def run_live_sensing(
 
             reasons_tuple = _ordered_unique(reasons)
             if packet.discontinuity_before or reasons_tuple:
-                live_detector.notify_discontinuity()
+                ended_epoch_diagnostics = live_detector.notify_discontinuity()
                 discontinuity_count += 1
                 epoch_submitted_frames = 0
                 armed_announced_epoch = None
                 timing_spans.clear()
+                next_diagnostic_report_frame = diagnostic_interval_frames
+                discontinuity_details: dict[str, Any] = {
+                    "dropped_callback_count_before": (
+                        packet.dropped_callback_count_before
+                    ),
+                    "dropped_frame_count_before": (
+                        packet.dropped_frame_count_before
+                    ),
+                    "portaudio_status_flags": packet.portaudio_status_flags,
+                }
+                if diagnostics_enabled and isinstance(
+                    ended_epoch_diagnostics, DetectorDiagnosticSnapshot
+                ):
+                    discontinuity_details["ended_detector_epoch"] = (
+                        _diagnostic_snapshot_details(ended_epoch_diagnostics)
+                    )
                 event_handler(
                     LiveSensingEvent(
                         event_type="discontinuity",
@@ -631,17 +673,7 @@ def run_live_sensing(
                         timing={
                             "processing_start_monotonic_ns": processing_start_ns,
                         },
-                        details={
-                            "dropped_callback_count_before": (
-                                packet.dropped_callback_count_before
-                            ),
-                            "dropped_frame_count_before": (
-                                packet.dropped_frame_count_before
-                            ),
-                            "portaudio_status_flags": (
-                                packet.portaudio_status_flags
-                            ),
-                        },
+                        details=discontinuity_details,
                     )
                 )
 
@@ -703,6 +735,36 @@ def run_live_sensing(
                         },
                     )
                 )
+
+            if diagnostics_enabled:
+                for candidate_start in _drain_candidate_start_diagnostics(
+                    live_detector
+                ):
+                    event_handler(
+                        _candidate_start_event(
+                            candidate_start,
+                            callback_sequence=packet.callback_sequence,
+                        )
+                    )
+
+                processed_frames = int(live_detector.processed_frame_count)
+                if processed_frames >= next_diagnostic_report_frame:
+                    snapshot = _consume_diagnostic_interval(live_detector)
+                    if snapshot is not None:
+                        event_handler(
+                            _diagnostic_summary_event(
+                                snapshot,
+                                bridge.statistics(),
+                                callback_sequence=packet.callback_sequence,
+                                discontinuity_count=discontinuity_count,
+                                portaudio_status_flags=(
+                                    packet.portaudio_status_flags
+                                ),
+                            )
+                        )
+                    next_diagnostic_report_frame = (
+                        processed_frames + diagnostic_interval_frames
+                    )
 
             for result in results:
                 event_timing = _result_timing(
@@ -916,6 +978,97 @@ def _startup_event(
     )
 
 
+def _drain_candidate_start_diagnostics(
+    detector: Any,
+) -> tuple[CandidateStartDiagnostic, ...]:
+    drain = getattr(detector, "drain_candidate_start_diagnostics", None)
+    if not callable(drain):
+        return ()
+    records = tuple(drain())
+    return tuple(
+        record for record in records if isinstance(record, CandidateStartDiagnostic)
+    )
+
+
+def _consume_diagnostic_interval(
+    detector: Any,
+) -> DetectorDiagnosticSnapshot | None:
+    consume = getattr(detector, "consume_diagnostic_interval", None)
+    if not callable(consume):
+        return None
+    snapshot = consume()
+    return snapshot if isinstance(snapshot, DetectorDiagnosticSnapshot) else None
+
+
+def _candidate_start_event(
+    record: CandidateStartDiagnostic,
+    *,
+    callback_sequence: int,
+) -> LiveSensingEvent:
+    block = record.block
+    return LiveSensingEvent(
+        event_type="diagnostic",
+        status="candidate_started",
+        message="Existing onset gate started a candidate collection.",
+        stream_epoch=record.stream_epoch,
+        callback_sequence=callback_sequence,
+        onset_frame_index=record.onset_frame_index,
+        details={"gate_block": asdict(block)},
+    )
+
+
+def _diagnostic_summary_event(
+    snapshot: DetectorDiagnosticSnapshot,
+    transport_statistics: Mapping[str, int],
+    *,
+    callback_sequence: int,
+    discontinuity_count: int,
+    portaudio_status_flags: tuple[str, ...],
+) -> LiveSensingEvent:
+    details = _diagnostic_snapshot_details(snapshot)
+    details["transport"] = {
+        "callback_count": int(transport_statistics["callback_count"]),
+        "callback_frames": int(transport_statistics["callback_frames"]),
+        "queue_high_water_mark": int(
+            transport_statistics["queue_high_water_mark"]
+        ),
+        "dropped_callback_count": int(
+            transport_statistics["dropped_callback_count"]
+        ),
+        "dropped_frame_count": int(transport_statistics["dropped_frame_count"]),
+        "discontinuity_count": int(discontinuity_count),
+        "current_packet_portaudio_status_flags": portaudio_status_flags,
+    }
+    return LiveSensingEvent(
+        event_type="diagnostic",
+        status="summary",
+        message="Low-rate detector decision summary.",
+        stream_epoch=snapshot.stream_epoch,
+        callback_sequence=callback_sequence,
+        details=details,
+    )
+
+
+def _diagnostic_snapshot_details(
+    snapshot: DetectorDiagnosticSnapshot,
+) -> dict[str, Any]:
+    return {
+        "detector_state": snapshot.state.value,
+        "processed_frame_count": snapshot.processed_frame_count,
+        "learned_noise_floor_rms": snapshot.learned_noise_floor_rms,
+        "cumulative_counters": asdict(snapshot.cumulative_counters),
+        "interval_counters": asdict(snapshot.interval_counters),
+        "closest_armed_block": (
+            asdict(snapshot.closest_armed_block)
+            if snapshot.closest_armed_block is not None
+            else None
+        ),
+        "buffered_candidate_start_record_count": (
+            snapshot.buffered_candidate_start_record_count
+        ),
+    }
+
+
 def _result_timing(
     packet: AudioChunkPacket,
     result: DetectionResult,
@@ -976,14 +1129,6 @@ def _result_timing(
         # Raw backend evidence only. PortAudio stream.time is not assumed to
         # share a usable absolute origin with inputBufferAdcTime on every host.
         "stream_time_at_result_seconds": stream_time,
-        "approximate_onset_to_result_seconds": _sum_durations(
-            onset_to_callback,
-            callback_to_result,
-        ),
-        "approximate_center_to_result_seconds": _sum_durations(
-            center_to_callback,
-            callback_to_result,
-        ),
         "detector_latency_seconds": _optional_finite(
             result.metrics.get("detector_latency_seconds")
         ),
@@ -1154,17 +1299,6 @@ def _nonnegative_nanoseconds_duration(
     if difference_ns < 0:
         return None
     return float(difference_ns / 1_000_000_000.0)
-
-
-def _sum_durations(
-    first: float | None, second: float | None
-) -> float | None:
-    if first is None or second is None:
-        return None
-    total = first + second
-    if not math.isfinite(total) or total < 0.0:
-        return None
-    return float(total)
 
 
 def _ordered_unique(values: Any) -> tuple[str, ...]:

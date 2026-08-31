@@ -10,7 +10,9 @@ import pytest
 
 from desksense.features import PRIMARY_FEATURE_NAME, extract_two_channel_features
 from desksense.streaming import (
+    CandidateStartDiagnostic,
     DetectionResult,
+    DetectorDiagnosticSnapshot,
     DetectorState,
     StreamingDetectorConfig,
     StreamingTapDetector,
@@ -77,6 +79,19 @@ def _event_projection(result: DetectionResult) -> tuple[object, ...]:
         result.window_end_frame_index_exclusive,
         result.candidate_window.tobytes(),
     )
+
+
+def _production_block_phase_sweep() -> tuple[bool, ...]:
+    """Exercise the unchanged 240-frame gate at every within-block phase."""
+
+    config = StreamingDetectorConfig(startup_learning_seconds=0.010)
+    base = 6_000
+    outcomes: list[bool] = []
+    for offset in range(config.internal_block_frames):
+        audio = np.zeros((12_000, 2), dtype=np.float32)
+        audio[base + offset : base + offset + 10] = 0.0007
+        outcomes.append(bool(StreamingTapDetector(config).process_chunk(audio)))
+    return tuple(outcomes)
 
 
 def test_default_geometry_preserves_validated_window_domain() -> None:
@@ -457,3 +472,217 @@ def test_pure_streaming_and_inference_imports_do_not_load_sounddevice() -> None:
     )
 
     assert completed.returncode == 0, completed.stderr
+
+
+def test_diagnostic_gate_counters_and_closest_block_are_exact() -> None:
+    config = _small_config(startup_learning_seconds=0.005)
+    audio = np.zeros((15, 2), dtype=np.float32)
+    audio[10:15] = 0.0002
+    detector = StreamingTapDetector(config)
+
+    assert detector.process_chunk(audio) == ()
+    snapshot = detector.diagnostic_snapshot()
+
+    assert isinstance(snapshot, DetectorDiagnosticSnapshot)
+    counts = snapshot.cumulative_counters
+    assert counts.fixed_blocks_processed_total == 3
+    assert counts.learning_suppressed_blocks == 1
+    assert counts.armed_evaluated_blocks == 2
+    assert counts.collecting_blocks == 0
+    assert counts.refractory_suppressed_blocks == 0
+    assert (counts.rms_pass_count, counts.rms_fail_count) == (1, 1)
+    assert (counts.peak_pass_count, counts.peak_fail_count) == (0, 2)
+    assert (counts.crest_pass_count, counts.crest_fail_count) == (0, 2)
+    assert counts.all_gates_pass_count == 0
+    closest = snapshot.closest_armed_block
+    assert closest is not None
+    assert (
+        closest.block_start_frame_index,
+        closest.block_end_frame_index_exclusive,
+    ) == (10, 15)
+    assert closest.block_rms == pytest.approx(0.0002)
+    assert closest.block_peak_absolute == pytest.approx(0.0002)
+    assert closest.block_crest_factor == pytest.approx(1.0)
+    assert closest.rms_ratio == pytest.approx(
+        closest.block_rms / closest.required_rms_threshold
+    )
+    assert closest.peak_ratio == pytest.approx(
+        closest.block_peak_absolute / closest.required_peak_threshold
+    )
+    assert closest.crest_ratio == pytest.approx(0.5)
+    assert closest.all_gates_score == pytest.approx(
+        min(closest.rms_ratio, closest.peak_ratio, closest.crest_ratio)
+    )
+
+
+def test_candidate_start_diagnostic_precedes_completed_result() -> None:
+    audio = _impulse_stream(centers=(203,))
+    detector = StreamingTapDetector(_small_config())
+
+    first_results = detector.process_chunk(audio[:205])
+    starts = detector.drain_candidate_start_diagnostics()
+    before_completion = detector.diagnostic_snapshot()
+
+    assert first_results == ()
+    assert len(starts) == 1
+    start = starts[0]
+    assert isinstance(start, CandidateStartDiagnostic)
+    assert start.stream_epoch == 0
+    assert start.onset_frame_index == 203
+    assert (
+        start.block.block_start_frame_index,
+        start.block.block_end_frame_index_exclusive,
+    ) == (200, 205)
+    assert start.block.all_gates_score >= 1.0
+    assert before_completion.cumulative_counters.onset_candidates_started == 1
+    assert before_completion.cumulative_counters.completed_detections == 0
+
+    completed = detector.process_chunk(audio[205:])
+    after_completion = detector.diagnostic_snapshot()
+    assert len(completed) == 1
+    assert completed[0].onset_frame_index == start.onset_frame_index
+    assert after_completion.cumulative_counters.completed_detections == 1
+    assert detector.drain_candidate_start_diagnostics() == ()
+
+
+def test_lifecycle_block_and_completion_counters_are_exact() -> None:
+    detector = StreamingTapDetector(_small_config())
+
+    result = detector.process_chunk(_impulse_stream())[0]
+    counts = detector.diagnostic_snapshot().cumulative_counters
+
+    assert result.status == "detected"
+    assert counts.fixed_blocks_processed_total == 160
+    assert counts.learning_suppressed_blocks == 10
+    assert counts.armed_evaluated_blocks == 101
+    assert counts.collecting_blocks == 19
+    assert counts.refractory_suppressed_blocks == 30
+    assert (
+        counts.learning_suppressed_blocks
+        + counts.armed_evaluated_blocks
+        + counts.collecting_blocks
+        + counts.refractory_suppressed_blocks
+        == counts.fixed_blocks_processed_total
+    )
+    assert counts.onset_candidates_started == 1
+    assert counts.completed_detections == 1
+    assert counts.completed_rejections == 0
+
+
+def test_diagnostics_do_not_change_results_or_candidate_bytes() -> None:
+    audio = _impulse_stream(centers=(203, 600))
+    reference = StreamingTapDetector(_small_config())
+    observed = StreamingTapDetector(_small_config())
+
+    reference_results = _feed(reference, _partition(audio, (17, 111, 2, 39)))
+    observed_results: list[DetectionResult] = []
+    for chunk in _partition(audio, (17, 111, 2, 39)):
+        observed_results.extend(observed.process_chunk(chunk))
+        observed.diagnostic_snapshot()
+        observed.consume_diagnostic_interval()
+        observed.drain_candidate_start_diagnostics()
+
+    assert [_event_projection(item) for item in observed_results] == [
+        _event_projection(item) for item in reference_results
+    ]
+    assert (
+        observed.diagnostic_snapshot().cumulative_counters
+        == reference.diagnostic_snapshot().cumulative_counters
+    )
+
+
+def test_diagnostics_are_chunk_partition_invariant() -> None:
+    audio = _impulse_stream(centers=(203,))
+    partitions = (
+        [audio.copy()],
+        _partition(audio, (17, 2, 111, 4, 39, 1)),
+        _partition(audio, (1,)),
+    )
+    observations: list[tuple[object, ...]] = []
+
+    for chunks in partitions:
+        detector = StreamingTapDetector(_small_config())
+        results = _feed(detector, chunks)
+        snapshot = detector.diagnostic_snapshot()
+        starts = detector.drain_candidate_start_diagnostics()
+        observations.append(
+            (
+                tuple(_event_projection(item) for item in results),
+                snapshot.cumulative_counters,
+                snapshot.interval_counters,
+                snapshot.closest_armed_block,
+                starts,
+            )
+        )
+
+    assert observations[1:] == [observations[0], observations[0]]
+
+
+def test_interval_consumption_resets_only_interval_diagnostics() -> None:
+    detector = StreamingTapDetector(_small_config(startup_learning_seconds=0.005))
+    detector.process_chunk(np.zeros((15, 2), dtype=np.float32))
+
+    consumed = detector.consume_diagnostic_interval()
+    after = detector.diagnostic_snapshot()
+
+    assert consumed.interval_counters.fixed_blocks_processed_total == 3
+    assert consumed.closest_armed_block is not None
+    assert after.interval_counters.fixed_blocks_processed_total == 0
+    assert after.closest_armed_block is None
+    assert after.cumulative_counters == consumed.cumulative_counters
+
+
+def test_discontinuity_reports_discarded_candidate_then_resets_epoch_diagnostics() -> None:
+    audio = _impulse_stream(centers=(203,))
+    detector = StreamingTapDetector(_small_config())
+    assert detector.process_chunk(audio[:205]) == ()
+
+    ended = detector.notify_discontinuity()
+    restarted = detector.diagnostic_snapshot()
+
+    assert ended.stream_epoch == 0
+    assert ended.cumulative_counters.onset_candidates_started == 1
+    assert ended.cumulative_counters.candidates_discarded_by_discontinuity == 1
+    assert restarted.stream_epoch == 1
+    assert restarted.state is DetectorState.LEARNING
+    assert restarted.processed_frame_count == 0
+    assert restarted.cumulative_counters.fixed_blocks_processed_total == 0
+    assert restarted.interval_counters.fixed_blocks_processed_total == 0
+    assert restarted.closest_armed_block is None
+    assert restarted.buffered_candidate_start_record_count == 0
+
+
+def test_candidate_start_diagnostic_storage_is_bounded() -> None:
+    config = _small_config(
+        startup_learning_seconds=0.005,
+        tap_window_seconds=0.020,
+        center_search_pre_onset_seconds=0.002,
+        center_search_post_onset_seconds=0.005,
+        refractory_seconds=0.005,
+        history_safety_seconds=0.005,
+    )
+    centers = tuple(range(100, 100 + 70 * 30, 30))
+    audio = _impulse_stream(frame_count=2_300, centers=centers)
+    detector = StreamingTapDetector(config)
+
+    detector.process_chunk(audio)
+    snapshot = detector.diagnostic_snapshot()
+    records = detector.drain_candidate_start_diagnostics()
+
+    assert snapshot.cumulative_counters.onset_candidates_started == 70
+    assert len(records) == detector._CANDIDATE_START_DIAGNOSTIC_CAPACITY
+    assert snapshot.cumulative_counters.candidate_start_records_dropped == 6
+
+
+def test_production_240_frame_block_phase_sweep_is_deterministic_evidence() -> None:
+    outcomes = _production_block_phase_sweep()
+
+    assert len(outcomes) == 240
+    assert sum(outcomes) == 235
+    assert [index for index, triggered in enumerate(outcomes) if not triggered] == [
+        233,
+        234,
+        235,
+        236,
+        237,
+    ]
