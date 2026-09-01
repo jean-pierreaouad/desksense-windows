@@ -44,6 +44,14 @@ from desksense.realtime import (
     RealtimeSensingError,
     run_live_sensing,
 )
+from desksense.robustness import (
+    RobustnessError,
+    format_robustness_summary,
+    replay_robustness_dataset,
+    run_guided_robustness_collection,
+    write_robustness_report,
+)
+from desksense.robustness_dataset import RobustnessDatasetError
 
 _AUTO_REPORT = object()
 
@@ -62,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=_nonnegative_device_index,
         metavar="INDEX",
         help=(
-            "input device index to select (required for --collect-dataset and "
+            "input device index to select (required for collection modes and "
             "--sense; "
             "diagnostic/characterization modes otherwise use the system default; "
             "not used by offline workflows)"
@@ -92,6 +100,23 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "run guided alternating LEFT/RIGHT tap collection and retain accepted "
             "float32 waveforms locally under datasets/"
+        ),
+    )
+    capture_mode.add_argument(
+        "--collect-robustness-dataset",
+        action="store_true",
+        help=(
+            "run the explicit Phase 3B.0 guided positive/negative evidence "
+            "session and retain every structurally valid float32 capture locally"
+        ),
+    )
+    capture_mode.add_argument(
+        "--replay-robustness-dataset",
+        type=Path,
+        metavar="SESSION",
+        help=(
+            "validate and replay one Phase 3 robustness session through the "
+            "current unchanged detector entirely offline"
         ),
     )
     capture_mode.add_argument(
@@ -152,7 +177,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         metavar="PATH",
-        help="local dataset directory used by --collect-dataset (default: datasets)",
+        help=(
+            "local dataset directory used by --collect-dataset or "
+            "--collect-robustness-dataset (default: datasets)"
+        ),
     )
     parser.add_argument(
         "--interaction-context",
@@ -179,8 +207,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help=(
-            "required with --evaluate-frozen-baseline and --sense; baseline is "
-            "never modified"
+            "required with --evaluate-frozen-baseline and --sense, and optional "
+            "with --replay-robustness-dataset; baseline is never modified"
         ),
     )
     parser.add_argument(
@@ -191,8 +219,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "save a JSON report; omit PATH to create a timestamped file under "
-            "reports/ (dataset analysis and external evaluation do this even "
-            "when the option is omitted)"
+            "reports/ (dataset analysis, robustness replay, and external "
+            "evaluation do this even when the option is omitted)"
         ),
     )
     return parser
@@ -211,9 +239,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.baseline is not None
         and args.evaluate_frozen_baseline is None
         and not args.sense
+        and args.replay_robustness_dataset is None
     ):
         parser.error(
-            "--baseline requires --evaluate-frozen-baseline SESSION or --sense"
+            "--baseline requires --evaluate-frozen-baseline SESSION, "
+            "--replay-robustness-dataset SESSION, or --sense"
         )
 
     if args.freeze_baseline is not None:
@@ -269,6 +299,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         return _run_dataset_analysis_cli(args)
 
+    if args.replay_robustness_dataset is not None:
+        if args.device is not None:
+            parser.error(
+                "--device cannot be combined with --replay-robustness-dataset"
+            )
+        if args.samples_per_zone is not None or args.dataset_root is not None:
+            parser.error(
+                "--samples-per-zone and --dataset-root cannot be combined with "
+                "--replay-robustness-dataset"
+            )
+        if args.interaction_context is not None:
+            parser.error(
+                "--interaction-context cannot be combined with "
+                "--replay-robustness-dataset"
+            )
+        return _run_robustness_replay_cli(args)
+
     if args.sense:
         if args.device is None:
             parser.error("--sense requires --device INDEX")
@@ -304,9 +351,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dataset_root is None:
             args.dataset_root = Path("datasets")
         return _run_dataset_collection_cli(args)
+    if args.collect_robustness_dataset:
+        if args.device is None:
+            parser.error("--collect-robustness-dataset requires --device INDEX")
+        if args.samples_per_zone is not None:
+            parser.error(
+                "--samples-per-zone cannot be combined with "
+                "--collect-robustness-dataset"
+            )
+        if args.baseline is not None:
+            parser.error(
+                "--baseline cannot be combined with --collect-robustness-dataset"
+            )
+        if args.save_report is not None:
+            parser.error(
+                "--save-report cannot be combined with "
+                "--collect-robustness-dataset; evidence metadata is stored in "
+                "the session directory"
+            )
+        if args.dataset_root is None:
+            args.dataset_root = Path("datasets")
+        return _run_robustness_collection_cli(args)
     if args.samples_per_zone is not None or args.dataset_root is not None:
         parser.error(
-            "--samples-per-zone and --dataset-root require --collect-dataset"
+            "--samples-per-zone requires --collect-dataset; --dataset-root "
+            "requires a collection mode"
         )
 
     try:
@@ -495,6 +564,85 @@ def _run_dataset_collection_cli(args: argparse.Namespace) -> int:
     except (OSError, TypeError, ValueError) as error:
         print(f"Dataset collection failed: {error}", file=sys.stderr)
         return 1
+    return 0
+
+
+def _run_robustness_collection_cli(args: argparse.Namespace) -> int:
+    """Run explicit local robustness capture with lazy backend loading."""
+
+    try:
+        audio_backend = _load_audio_backend()
+    except Exception as error:
+        details = describe_audio_error(error)
+        print(
+            f"Could not load the audio backend: {details['message']}",
+            file=sys.stderr,
+        )
+        if details["category"] == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+    try:
+        run_guided_robustness_collection(
+            audio_backend,
+            device_index=args.device,
+            dataset_root=args.dataset_root,
+        )
+    except KeyboardInterrupt:
+        print(
+            "\nRobustness collection interrupted; already saved evidence remains "
+            "in the session directory.",
+            file=sys.stderr,
+        )
+        return 130
+    except EOFError:
+        print(
+            "\nRobustness collection input closed; already saved evidence remains "
+            "in the session directory.",
+            file=sys.stderr,
+        )
+        return 1
+    except RobustnessError as error:
+        print(f"Robustness collection failed: {error}", file=sys.stderr)
+        if error.category == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+    except (OSError, TypeError, ValueError) as error:
+        print(f"Robustness collection failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _run_robustness_replay_cli(args: argparse.Namespace) -> int:
+    """Replay robustness evidence without loading or initializing audio."""
+
+    try:
+        report = replay_robustness_dataset(
+            args.replay_robustness_dataset,
+            baseline_path=args.baseline,
+        )
+    except KeyboardInterrupt:
+        print("\nRobustness replay interrupted.", file=sys.stderr)
+        return 130
+    except (
+        RobustnessError,
+        RobustnessDatasetError,
+        OSError,
+        TypeError,
+        ValueError,
+    ) as error:
+        print(f"Robustness replay failed: {error}", file=sys.stderr)
+        return 1
+    print(format_robustness_summary(report))
+    requested_path = _AUTO_REPORT if args.save_report is None else args.save_report
+    try:
+        report_path = _robustness_report_path(
+            requested_path, report["generated_at_utc"]
+        )
+        saved_path = write_robustness_report(report, report_path)
+    except (OSError, TypeError, ValueError) as error:
+        print(f"Could not save JSON robustness report: {error}", file=sys.stderr)
+        return 1
+    print(f"\nJSON robustness replay report saved to: {saved_path}")
     return 0
 
 
@@ -931,6 +1079,17 @@ def _analysis_report_path(requested: object, generated_at_utc: str) -> Path:
         return Path("reports") / f"desksense-dataset-analysis-{timestamp}.json"
     if not isinstance(requested, Path):
         raise TypeError("Analysis report path must be a filesystem path.")
+    return requested
+
+
+def _robustness_report_path(requested: object, generated_at_utc: str) -> Path:
+    if requested is _AUTO_REPORT:
+        timestamp = datetime.fromisoformat(generated_at_utc).strftime(
+            "%Y%m%dT%H%M%S.%fZ"
+        )
+        return Path("reports") / f"desksense-robustness-replay-{timestamp}.json"
+    if not isinstance(requested, Path):
+        raise TypeError("Robustness report path must be a filesystem path.")
     return requested
 
 
