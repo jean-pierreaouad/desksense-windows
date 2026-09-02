@@ -52,6 +52,12 @@ from desksense.robustness import (
     write_robustness_report,
 )
 from desksense.robustness_dataset import RobustnessDatasetError
+from desksense.tapness import (
+    TapnessBaselineError,
+    create_tapness_baseline,
+    format_tapness_baseline_summary,
+    write_tapness_baseline,
+)
 
 _AUTO_REPORT = object()
 
@@ -116,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="SESSION",
         help=(
             "validate and replay one Phase 3 robustness session through the "
-            "current unchanged detector entirely offline"
+            "current versioned Stage 1 detector entirely offline"
         ),
     )
     capture_mode.add_argument(
@@ -138,6 +144,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     capture_mode.add_argument(
+        "--fit-tapness-baseline",
+        type=Path,
+        metavar="DEVELOPMENT_SESSION",
+        help=(
+            "fit the fixed Phase 3B.2 TAP/NON_TAP logistic baseline from one "
+            "validated robustness development session; entirely offline"
+        ),
+    )
+    capture_mode.add_argument(
         "--evaluate-frozen-baseline",
         type=Path,
         metavar="EXTERNAL_SESSION",
@@ -150,8 +165,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--sense",
         action="store_true",
         help=(
-            "continuously detect taps from an explicit input device and apply "
-            "an existing frozen LEFT/RIGHT baseline; no audio is saved"
+            "continuously generate candidates from an explicit input device, "
+            "apply frozen tapness validation, then apply the unchanged frozen "
+            "LEFT/RIGHT baseline; no audio is saved"
         ),
     )
     parser.add_argument(
@@ -212,6 +228,24 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--tapness-baseline",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "frozen TAP/NON_TAP artifact required with --sense and optional "
+            "with --replay-robustness-dataset for Stage 2 evaluation"
+        ),
+    )
+    parser.add_argument(
+        "--save-tapness-baseline",
+        type=Path,
+        metavar="PATH",
+        help=(
+            "required with --fit-tapness-baseline; exclusively write the "
+            "compact versioned tapness artifact"
+        ),
+    )
+    parser.add_argument(
         "--save-report",
         nargs="?",
         const=_AUTO_REPORT,
@@ -235,6 +269,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.save_baseline is not None and args.freeze_baseline is None:
         parser.error("--save-baseline requires --freeze-baseline SESSION")
+    if (
+        args.save_tapness_baseline is not None
+        and args.fit_tapness_baseline is None
+    ):
+        parser.error(
+            "--save-tapness-baseline requires --fit-tapness-baseline SESSION"
+        )
+    if (
+        args.tapness_baseline is not None
+        and not args.sense
+        and args.replay_robustness_dataset is None
+    ):
+        parser.error(
+            "--tapness-baseline requires --sense or "
+            "--replay-robustness-dataset SESSION"
+        )
     if (
         args.baseline is not None
         and args.evaluate_frozen_baseline is None
@@ -264,6 +314,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.save_report is not None:
             parser.error("--save-report cannot be combined with --freeze-baseline")
         return _run_freeze_baseline_cli(args)
+
+    if args.fit_tapness_baseline is not None:
+        if args.device is not None:
+            parser.error("--device cannot be combined with --fit-tapness-baseline")
+        if args.save_tapness_baseline is None:
+            parser.error(
+                "--fit-tapness-baseline requires --save-tapness-baseline PATH"
+            )
+        if any(
+            value is not None
+            for value in (
+                args.baseline,
+                args.tapness_baseline,
+                args.samples_per_zone,
+                args.dataset_root,
+                args.interaction_context,
+                args.save_report,
+            )
+        ):
+            parser.error(
+                "--fit-tapness-baseline only accepts its development session "
+                "and --save-tapness-baseline"
+            )
+        return _run_fit_tapness_baseline_cli(args)
 
     if args.evaluate_frozen_baseline is not None:
         if args.device is not None:
@@ -321,6 +395,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("--sense requires --device INDEX")
         if args.baseline is None:
             parser.error("--sense requires --baseline PATH")
+        if args.tapness_baseline is None:
+            parser.error("--sense requires --tapness-baseline PATH")
         if args.samples_per_zone is not None or args.dataset_root is not None:
             parser.error(
                 "--samples-per-zone and --dataset-root cannot be combined with "
@@ -451,6 +527,31 @@ def _run_freeze_baseline_cli(args: argparse.Namespace) -> int:
 
     print(format_frozen_baseline_summary(artifact))
     print(f"\nFrozen baseline saved to: {saved_path}")
+    return 0
+
+
+def _run_fit_tapness_baseline_cli(args: argparse.Namespace) -> int:
+    """Fit Session A-style tapness evidence without loading audio hardware."""
+
+    try:
+        artifact = create_tapness_baseline(args.fit_tapness_baseline)
+        saved_path = write_tapness_baseline(
+            artifact, args.save_tapness_baseline
+        )
+    except KeyboardInterrupt:
+        print("\nDeskSense tapness fitting interrupted.", file=sys.stderr)
+        return 130
+    except (
+        TapnessBaselineError,
+        RobustnessDatasetError,
+        OSError,
+        TypeError,
+        ValueError,
+    ) as error:
+        print(f"Tapness baseline creation failed: {error}", file=sys.stderr)
+        return 1
+    print(format_tapness_baseline_summary(artifact))
+    print(f"\nFrozen tapness baseline saved to: {saved_path}")
     return 0
 
 
@@ -619,6 +720,7 @@ def _run_robustness_replay_cli(args: argparse.Namespace) -> int:
         report = replay_robustness_dataset(
             args.replay_robustness_dataset,
             baseline_path=args.baseline,
+            tapness_baseline_path=args.tapness_baseline,
         )
     except KeyboardInterrupt:
         print("\nRobustness replay interrupted.", file=sys.stderr)
@@ -666,6 +768,7 @@ def _run_sense_cli(args: argparse.Namespace) -> int:
             audio_backend,
             device_index=args.device,
             baseline_path=args.baseline,
+            tapness_baseline_path=args.tapness_baseline,
             event_handler=_print_live_sensing_event,
             diagnostics_enabled=args.sense_diagnostics,
         )
@@ -710,6 +813,10 @@ def format_live_sensing_event(event: LiveSensingEvent) -> str:
                     f"(source session {details['baseline_source_session_id']})"
                 ),
                 (
+                    "Tapness baseline: "
+                    f"{details.get('tapness_baseline_path') or 'not supplied'}"
+                ),
+                (
                     f"Frozen threshold: {float(details['threshold_db']):+.6f} dB; "
                     f"{details['direction']}"
                 ),
@@ -738,8 +845,10 @@ def format_live_sensing_event(event: LiveSensingEvent) -> str:
 
     if event.event_type == "diagnostic" and event.status == "candidate_started":
         gate = event.details.get("gate_block", {})
+        route = event.details.get("candidate_start_route", "ordinary")
         return (
             "Diagnostic candidate start: "
+            f"route={route}; "
             f"epoch={_format_optional_index(event.stream_epoch)}; "
             f"onset={_format_optional_index(event.onset_frame_index)}; "
             f"block=[{gate.get('block_start_frame_index', '?')}:"
@@ -818,6 +927,14 @@ def format_live_sensing_event(event: LiveSensingEvent) -> str:
     if event.event_type == "detection" and event.status == "detected":
         timing_parts = _format_live_timing(event.timing)
         timing_suffix = f"; {timing_parts}" if timing_parts else ""
+        tapness = event.details.get("tapness_inference", {})
+        tapness_suffix = ""
+        if tapness:
+            tapness_suffix = (
+                "; tapness output="
+                f"{float(tapness['uncalibrated_model_output']):.6f}; "
+                f"tapness margin={float(tapness['model_margin']):+.6f}"
+            )
         return (
             f"Tap: {event.predicted_zone}; "
             f"peak ratio={float(event.feature_value_db):+.6f} dB; "
@@ -826,16 +943,26 @@ def format_live_sensing_event(event: LiveSensingEvent) -> str:
             f"epoch={_format_optional_index(event.stream_epoch)}; "
             f"onset={_format_optional_index(event.onset_frame_index)}; "
             f"center={_format_optional_index(event.center_frame_index)}"
+            f"{tapness_suffix}"
             f"{timing_suffix}"
         )
 
     if event.event_type == "rejection" or event.status == "rejected":
+        tapness = event.details.get("tapness_inference", {})
+        tapness_suffix = ""
+        if tapness:
+            tapness_suffix = (
+                "; tapness output="
+                f"{float(tapness['uncalibrated_model_output']):.6f}; "
+                f"tapness margin={float(tapness['model_margin']):+.6f}"
+            )
         return (
             "Tap rejected: "
             f"{_format_reason_codes(event.rejection_reasons)}; "
             f"epoch={_format_optional_index(event.stream_epoch)}; "
             f"onset={_format_optional_index(event.onset_frame_index)}; "
             f"center={_format_optional_index(event.center_frame_index)}"
+            f"{tapness_suffix}"
         )
 
     return event.message

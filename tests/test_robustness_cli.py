@@ -143,8 +143,8 @@ def test_robustness_replay_is_offline_and_writes_requested_report(
 
     monkeypatch.setattr(cli, "_load_audio_backend", fail_if_audio_is_loaded)
 
-    def fake_replay(path, *, baseline_path):
-        calls.append((path, baseline_path))
+    def fake_replay(path, *, baseline_path, tapness_baseline_path):
+        calls.append((path, baseline_path, tapness_baseline_path))
         return report
 
     monkeypatch.setattr(cli, "replay_robustness_dataset", fake_replay)
@@ -171,7 +171,6 @@ def test_robustness_replay_is_offline_and_writes_requested_report(
     assert exit_code == 0
     assert "summary" in captured.out
     assert calls == [
-        (session, baseline),
+        (session, baseline, None),
         (report, report_path),
     ]
-

@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-08-30
+Status captured: 2026-09-01
 
 ## Project purpose
 
@@ -39,6 +39,14 @@ establish general DeskSense accuracy.
 Real-hardware observations in this document apply only to the Lenovo Windows 11
 development laptop and the tested endpoints and procedures.
 
+Phase 3 robustness work now separates high-recall candidate generation,
+TAP/NON_TAP validation, and the unchanged frozen LEFT/RIGHT classifier.
+Development Session A was used to select the Phase 3B.2 Stage 1 recovery route,
+Stage 2 feature/model design, L2 value, and operating threshold. Every Phase
+3B.2 result from that session is therefore development evidence, not untouched
+validation. The resulting pipeline must not be described as robust or
+production-ready until it passes a new frozen, untouched Session B.
+
 ## Development environment
 
 | Component | Current environment |
@@ -74,32 +82,47 @@ hand more cleanly. It still represents one user, Lenovo laptop, wooden
 desk/setup, two zones, and one external session—not general, cross-device, or
 product-level accuracy.
 
-Phase 3A.1 is complete and checkpointed. Phase 3A.2a now provides an injected
-`sounddevice.InputStream` adapter, bounded callback-to-main-thread transport,
-and a terminal `--sense` command that applies the frozen baseline unchanged.
-The complete suite passes 340 tests, and the implementation is independently
-code-reviewed and checkpointed.
+Phase 3A.1 and Phase 3A.2 are complete and checkpointed. They provide the pure
+streaming state machine, injected `sounddevice.InputStream` adapter, bounded
+callback-to-main-thread transport, and terminal `--sense` path. Phase 3A.3
+diagnostics made candidate gates and missed-event evidence observable and were
+sufficient to expose that the original detector had both poor intended-tap
+recall and serious mechanical false-positive behavior. No Windows action path
+exists yet.
 
-The first physical Phase 3A.2b Lenovo WDM-KS pilot has now run through this
-continuous path. The detector armed, and all seven intended same-hand taps
-(three LEFT, four RIGHT) produced detections whose observed classifications
-matched the intended zones using the unchanged frozen baseline. No rejection,
-audio-discontinuity, queue-overflow, or PortAudio input-overflow event was
-observed, and Ctrl+C shutdown completed cleanly. This is a short positive-case
-pilot, not a real-time accuracy or robustness result. It also exposed an
-invalid approximately 82-million-ms onset-to-result timing value; that metric
-remains historical evidence of an instrumentation defect and is not a latency
-measurement.
+Checkpoint `93776418aef34558a114df7ab5d16e0cf2512b30` (`Add Phase 3B robustness
+evidence pipeline`) is the latest pushed production state. Phase 3B.0 added a
+local guided robustness dataset and deterministic offline replay. Development
+Session A (`20260901T131308.362205Z-f9e2b1ec`) contains 30 intended taps and 14
+labeled negative segments. The old detector produced candidates for only 8/30
+intended taps and 47 completed false events over 140 labeled negative seconds
+(20.143/min), while its conditional frozen spatial result remained 8/8.
 
-Phase 3A.3 now replaces the invalid absolute-clock subtraction with a
-clock-origin-safe composition of a PortAudio-domain duration and a Python
-monotonic-domain duration. Missing, non-finite, negative, or otherwise unusable
-components produce `None`/unavailable rather than a fabricated value. The
-complete suite passes 351 tests. This fix is implemented, fake-tested, and
-independently code-reviewed, but it has not yet been physically validated on
-the Lenovo. Phase 3A.2b and its first positive-case pilot are checkpointed; the
-timing fix is not yet checkpointed at the time of this status update. No
-Windows action path exists yet.
+Phase 3B.1 used Session A only as development evidence. Phase 3B.2 now keeps
+the ordinary RMS/peak/crest route unchanged and adds one non-overlapping
+strong-impact recovery route requiring both RMS gate ratio >= 6.0 and peak
+gate ratio >= 8.0. Production replay gives 29/30 Stage 1 candidates and 50
+negative candidates over 140 seconds (21.429/min). Overlap, adaptive-floor,
+ordinary-crest, center, refractory, clipping, and 9,600-by-2 candidate changes
+were deliberately deferred.
+
+The new versioned `baselines/lenovo-tapness-v1.json` artifact applies an
+independent nine-feature L2-logistic TAP/NON_TAP model before the unchanged
+spatial classifier. It was fitted from 29 TAP and 50 NON_TAP Session A
+candidates with L2 0.01 and an uncalibrated-score threshold of
+0.4495211534633274. Grouped development OOF accepted 28/29 TAP candidates and
+5/50 NON_TAP candidates. Final all-development replay accepted 28/30 intended
+taps, falsely accepted 4/50 negative candidates (1.714/min), and retained
+28/28 conditional spatial correctness. These are tuned development and
+resubstitution results, not validation. Phase 3B.2 is implementation-complete,
+validated by a 462-test suite, and ready to checkpoint before untouched Session
+B is collected.
+
+Stage 3 remains `baselines/lenovo-left-right-v1.json` without refitting or
+modification: `peak_ratio_db_ch2_minus_ch1`, threshold
++0.12793235855251162 dB, LEFT below and RIGHT at or above, over the exact raw
+48 kHz × 2-channel × 9,600-frame domain. The historical untouched same-hand
+Phase 2C result remains 39/40.
 
 ## Delivered milestones
 
@@ -654,8 +677,8 @@ still pending.
 
 ### Phase 3A.3 — clock-origin-safe live timing instrumentation
 
-Status: **software fix implemented, fake-tested, and independently
-code-reviewed; physical Lenovo validation pending**
+Status: **initial software fix implemented and tested; later physical evidence
+showed the combined metric remained invalid, so normal live output omits it**
 
 The first physical pilot's impossible approximately 82-million-ms value came
 from a derived timing path conceptually equivalent to:
@@ -708,11 +731,116 @@ Verification:
 - `pip check`, `compileall`, lazy import checks, and `git diff --check` passed.
 - No microphone hardware was accessed and `--sense` was not executed.
 
-The fix has not yet been validated on the physical Lenovo WDM-KS backend. The
-next evidence step is to checkpoint it and rerun a short controlled live pilot,
-confirming that approximate timing values are sane or fail safely to
-unavailable. Until then, the physical timing defect must not be described as
-resolved.
+A later physical Lenovo WDM-KS run still emitted an impossible approximately
+84.7-million-ms combined value. The cross-clock composition therefore did not
+produce a physically valid end-to-end metric on the tested path. Normal
+`--sense` output now omits the combined onset/center-to-result fields rather
+than attempting another transformation. Stream-reported latency, queue dwell,
+and sample-domain detector lookahead remain separate raw or algorithmic
+evidence; none is called precise user-perceived latency.
+
+Subsequent Phase 3A.3 observability added opt-in gate counters,
+closest-to-trigger evidence, candidate-start routes, and discontinuity-scoped
+detector epochs without changing decisions. Controlled physical diagnostics
+then exposed both missed intended taps and substantial false triggering from
+mechanical non-tap activity. This completed enough diagnostic work to define
+the Phase 3A-to-3B boundary; it did not establish robust detection.
+
+### Phase 3B.0 — robustness evidence and offline replay foundation
+
+Status: **complete and checkpointed in `93776418`; Development Session A
+collected**
+
+Implemented:
+
+- A distinct local Phase 3 robustness schema for guided positive attempts and
+  labeled negative activity segments.
+- Positive captures that preserve every structurally valid intended attempt,
+  including detector misses.
+- Negative captures with machine-readable warm-up, labeled-activity, and
+  post-activity completion-tail boundaries.
+- Deterministic offline replay through the production detector without loading
+  microphone hardware or modifying dataset files.
+- Separate Stage 1 recall, negative event-rate, conditional spatial, candidate
+  association, and descriptive tapness-feature reporting.
+
+Development Session A, `20260901T131308.362205Z-f9e2b1ec`, contains 30
+LEFT/RIGHT × light/normal/firm intended taps and 14 negative segments. Its raw
+48 kHz, two-channel recordings remain local. The old detector produced 8/30
+associated positive candidates and 47 negative completed events over 140
+labeled seconds. This established the need to separate candidate generation,
+tapness validation, and spatial classification.
+
+### Phase 3B.1 — Session A offline detector-design study
+
+Status: **development study complete**
+
+Session A waveform analysis compared the existing non-overlapping detector,
+an overlapping counterfactual, strong-impact recovery alternatives, adaptive
+floor behavior, and deterministic Stage 2 feature gates. The selected smallest
+Stage 1 change retained the fixed 5 ms timeline and added only the RMS >= 6x
+and peak >= 8x recovery route. Overlapping blocks, floor-policy changes, and
+global crest relaxation were deferred. Feature overlap between true taps and
+mechanical negative events supported a small regularized binary model rather
+than a growing set of brittle hard gates.
+
+### Phase 3B.2 — versioned Stage 1 and frozen tapness baseline
+
+Status: **implementation and recovery complete; ready to checkpoint; untouched
+Session B not yet collected**
+
+Implemented:
+
+- Versioned Stage 1 ordinary-or-strong-impact candidate generation with
+  ordinary diagnostic precedence and no duplicate candidate.
+- One shared, immutable nine-feature tapness schema and extractor that preserves
+  the raw 9,600-by-2 candidate.
+- Deterministic NumPy L2-logistic fitting, grouped development folds,
+  training-fold-only preprocessing, and a documented recall-constrained
+  operating-point rule.
+- Strict artifact validation, exact source-dataset fingerprinting and candidate
+  membership, complete material Stage 1 compatibility binding, exclusive JSON
+  writing, and explicit non-convergence failure.
+- Live and offline ordering of Stage 1 → frozen Stage 2 → unchanged frozen
+  Stage 3, with Stage 2 rejection preventing spatial inference.
+
+Frozen Stage 2 artifact:
+
+- Path: `baselines/lenovo-tapness-v1.json`.
+- Model: L2-regularized TAP/NON_TAP logistic regression; L2 = 0.01.
+- Features: pre-onset RMS, impact-window RMS, impact peak, onset contrast,
+  peak-dominant contrast, effective energy duration, early-energy fraction,
+  late-to-impact RMS ratio, and strong-sample fraction.
+- Uncalibrated-score threshold: 0.4495211534633274.
+- Training membership: 29 TAP and 50 NON_TAP candidates, all from Session A.
+- Dataset SHA-256:
+  `88a003966141d15858a2afec390c42e567439eb5f538b958e7aa60ee7638ab83`.
+- No LEFT/RIGHT feature, spatial threshold, spatial margin, predicted zone, or
+  waveform array is stored or used by Stage 2.
+
+Development-only results:
+
+- Versioned Stage 1: 29/30 intended candidates; LEFT 15/15, RIGHT 14/15,
+  light 10/10, normal 9/10, firm 10/10.
+- Negative Stage 1 volume: 50 candidates over 140 labeled seconds,
+  21.429/min.
+- Grouped OOF Stage 2: 28/29 TAP accepted and 5/50 NON_TAP false accepted.
+- Final all-Session-A replay: 28/30 intended taps accepted; 4/50 negative
+  candidates false accepted, or 1.714/min; two laptop-movement and two
+  desk/object-interaction events.
+- Frozen Stage 3 remained unchanged and was correct for all 28 Stage 2-accepted
+  positives.
+
+Session A selected the Stage 1 policy, Stage 2 design, L2, and threshold.
+Accordingly, none of these figures is untouched validation. Artifact
+regeneration using its stored timestamp reproduced its means, scales,
+coefficients, intercept, threshold, memberships, and fingerprint exactly.
+Validation completed with 40 tapness tests, 165 combined
+tapness/streaming/realtime/robustness tests, 94 CLI/robustness-CLI tests, and a
+462-test full suite. `pip check`, `compileall`, CLI `--help`, lazy imports with
+`sounddevice_loaded=False`, and `git diff --check` passed without microphone or
+live-sensing access; the diff check emitted only normal LF-to-CRLF advisory
+warnings.
 
 ## Lenovo audio endpoints observed
 
@@ -966,28 +1094,29 @@ larger dataset is available.
 
 The primary engineering question is now:
 
-> Can the reviewed pure detector and unchanged frozen LEFT/RIGHT rule remain
-> reliable across controlled continuous Lenovo trials with background
-> activity, weak taps, non-tap sounds, and longer runs while timing evidence is
-> validated safely?
+> Can the frozen Phase 3B.2 Stage 1 + Stage 2 pipeline preserve high
+> intended-tap recall while suppressing realistic mechanical non-tap activity
+> on a completely untouched cross-session evaluation, before any Windows
+> actions are enabled?
 
 Broad Windows endpoint exploration is paused. WDM-KS device 18 at 48 kHz with
 two active, meaningfully different channels is the selected endpoint for the
 next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
-The collector, datasets, offline analysis, frozen baseline, external
-evaluation, pure streaming detector, label-free frozen decision path, injected
-live adapter, bounded callback transport, and terminal `--sense` path are
-implemented and checkpointed. The first physical pilot is complete. The
-Phase 3A.3 timing guard is implemented and fake-tested but not physically
-validated. The immediate next steps are to checkpoint the timing fix and then
-rerun a short controlled Lenovo live pilot, confirming that the revised values
-are sane or fail safely to unavailable. Broader controlled experiments should
-then cover background activity, false triggers, weak taps, causal alignment,
-queue behavior, misses, duplicate events, classification margins, and
-defensible latency evidence. The classifier should not be refitted merely in
-response to the first positive-case pilot.
+The Phase 3B.2 implementation is ready to checkpoint. After it is frozen, a
+new untouched Session B must evaluate Stage 1 recall, Stage 2 positive
+survival, Stage 2 false accepts, and conditional frozen Stage 3 correctness.
+The approximate engineering gates are Stage 1 >= 27/30 intended taps, Stage 2
+>= 27/30, preferably at least 4/5 in every side-by-strength cell, and no more
+than one Stage 2 false accept during a five-minute scripted negative protocol.
+The detector, tapness artifact, and spatial artifact must not be tuned after
+viewing Session B.
+
+If Session B motivates any change, it becomes development evidence and a new
+untouched Session C is required before a subsequent external robustness claim.
+The historical Phase 2C same-hand result remains the official 39/40 spatial
+external result and is not replaced by Phase 3 development replay.
 
 Windows actions, hotkeys, and GUI behavior remain deferred until reliable
 real-time sensing is demonstrated.
@@ -1003,8 +1132,8 @@ development evidence for those changes. Any modified classifier requires
 another newly collected untouched session before a new external-validation
 claim can be made.
 
-Phase 2 should study and adapt suitable ideas from the MIT-licensed Holo project
-with attribution where useful instead of rebuilding algorithms unnecessarily.
+Phase 3 should continue adapting suitable ideas from the MIT-licensed Holo
+project with attribution only where DeskSense evidence supports them.
 
 ## Roadmap
 
@@ -1017,12 +1146,15 @@ with attribution where useful instead of rebuilding algorithms unnecessarily.
 | 2C — frozen baseline and external evaluation | Complete; baseline precommitted; first same-hand cross-session result 39/40 |
 | External validation evidence gate | First scoped session complete; further untouched sessions required for modified models or broader claims |
 | 3A.1 — pure streaming detector and label-free inference | Complete, code-reviewed, and checkpointed |
-| 3A.2a — injected live audio adapter and terminal sensing | Complete, fake-tested, code-reviewed, and checkpointed in Checkpoint #8 |
-| 3A.2b — first physical live Lenovo sensing pilot | First short pilot complete and checkpointed: 7 intended taps, 7 detections, 7 matching intended-zone outputs; no broad robustness claim |
-| 3A.3 — live robustness and measurement | Timing instrumentation fix implemented, fake-tested, and code-reviewed; checkpoint and physical validation next |
-| 4 — real-time DeskSense and Windows action mapping | Not started |
-| 5 — cross-laptop hardware adaptation and testing | Not started |
-| 6 — installer/UI if justified, benchmarks, demo, and release material | Not started |
+| 3A.2 — injected live adapter and physical sensing pilots | Complete and checkpointed; positive live path demonstrated without a broad robustness claim |
+| 3A.3 — observability and diagnostic work | Complete enough to expose missed-tap and false-positive failure modes |
+| 3B.0 — robustness evidence and replay pipeline | Complete and checkpointed in `93776418` |
+| 3B.1 — Session A offline design study | Complete; development evidence only |
+| 3B.2 — high-recall Stage 1 and frozen Stage 2 tapness model | Implementation/recovery complete and ready to checkpoint; 462 tests passing |
+| 3B external validation | Next; untouched Session B has not been collected |
+| 4 — Windows action mapping | Deferred until robustness evidence passes |
+| 5 — cross-laptop adaptation and testing | Deferred |
+| 6 — polish, demo, and release work | Deferred |
 
 The first same-hand external session provides strong evidence for
 location-dependent acoustic information and cross-session performance in the
@@ -1033,7 +1165,9 @@ broader claims require additional users, sessions, desks, devices, and zones.
 
 - Runtime dependencies remain limited to sounddevice and NumPy; pytest is the
   test dependency.
-- Raw recordings are kept in memory and are not included in JSON reports.
+- Normal diagnostic/live-sensing audio remains in memory and is not included
+  in JSON reports. Raw waveform retention occurs only in explicit local dataset
+  collection modes.
 - Generated reports under `reports/` are intentionally ignored by Git while
   `reports/.gitkeep` preserves the directory location.
 - Earlier diagnostic and characterization reports may exist locally and are
@@ -1061,9 +1195,18 @@ broader claims require additional users, sessions, desks, devices, and zones.
 - The first live pilot's approximately 82-million-ms onset-to-result values are
   retained only as evidence of a timing instrumentation defect and must not be
   treated as physical latency measurements.
-- Phase 3A.3 no longer uses raw `stream.time` to derive onset/center latency.
-  It retains that value only as diagnostic evidence and composes valid
-  within-domain durations, failing safely to unavailable when required timing
-  components cannot be used.
+- Normal Phase 3A.3 live output omits the physically invalid combined
+  onset/center-to-result timing metric. Stream-reported latency, queue dwell,
+  and detector lookahead remain separate evidence and are not combined into a
+  claimed end-to-end latency.
+- Phase 3B Development Session A remains local under the Git-ignored
+  `datasets/` root. Its raw Phase 3 robustness recordings are not committed.
+- Phase 3 Stage 2 fitting, replay, and inference remain local. Generated replay
+  reports remain under the ignored `reports/` root and contain no waveform
+  arrays.
+- `baselines/lenovo-tapness-v1.json` contains derived model, feature-schema,
+  training-membership, fingerprint, Stage 1 compatibility, and development
+  evidence metadata only. It contains no raw waveform arrays and is intended
+  to be checkpointed before untouched Session B collection.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

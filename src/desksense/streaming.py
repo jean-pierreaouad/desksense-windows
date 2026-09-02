@@ -58,6 +58,8 @@ class StreamingDetectorConfig:
     minimum_onset_rms: float = 4.0 / 32_768.0
     minimum_onset_peak: float = 16.0 / 32_768.0
     minimum_crest_factor: float = 3.0
+    strong_impact_recovery_rms_ratio: float = 6.0
+    strong_impact_recovery_peak_ratio: float = 8.0
     noise_floor_adaptation_alpha: float = 0.02
     clipping_threshold: float = 0.98
     reject_near_clipping: bool = True
@@ -100,6 +102,12 @@ class StreamingDetectorConfig:
             "minimum onset RMS": self.minimum_onset_rms,
             "minimum onset peak": self.minimum_onset_peak,
             "minimum crest factor": self.minimum_crest_factor,
+            "strong-impact recovery RMS ratio": (
+                self.strong_impact_recovery_rms_ratio
+            ),
+            "strong-impact recovery peak ratio": (
+                self.strong_impact_recovery_peak_ratio
+            ),
             "clipping threshold": self.clipping_threshold,
         }
         for label, value in positive_thresholds.items():
@@ -110,6 +118,10 @@ class StreamingDetectorConfig:
             raise ValueError("Onset peak/noise multiplier must be at least 1.")
         if self.minimum_crest_factor < 1.0:
             raise ValueError("Minimum crest factor must be at least 1.")
+        if self.strong_impact_recovery_rms_ratio < 1.0:
+            raise ValueError("Strong-impact recovery RMS ratio must be at least 1.")
+        if self.strong_impact_recovery_peak_ratio < 1.0:
+            raise ValueError("Strong-impact recovery peak ratio must be at least 1.")
         if not 0.0 < float(self.noise_floor_adaptation_alpha) <= 1.0:
             raise ValueError(
                 "Noise-floor adaptation alpha must be finite and in (0, 1]."
@@ -265,14 +277,26 @@ class StreamingDetectorConfig:
             "minimum_onset_rms": float(self.minimum_onset_rms),
             "minimum_onset_peak": float(self.minimum_onset_peak),
             "minimum_crest_factor": float(self.minimum_crest_factor),
+            "strong_impact_recovery": {
+                "route_name": "strong_impact_recovery",
+                "rms_ratio_minimum_inclusive": float(
+                    self.strong_impact_recovery_rms_ratio
+                ),
+                "peak_ratio_minimum_inclusive": float(
+                    self.strong_impact_recovery_peak_ratio
+                ),
+                "crest_gate_required": False,
+                "ordinary_route_precedence": True,
+            },
             "noise_floor_adaptation_alpha_per_fixed_block": float(
                 self.noise_floor_adaptation_alpha
             ),
             "clipping_threshold": float(self.clipping_threshold),
             "reject_near_clipping": self.reject_near_clipping,
             "threshold_status": (
-                "initial Phase 3A engineering defaults; not physically "
-                "validated or tuned from Phase 2C external labels"
+                "ordinary gate remains the Phase 3A engineering default; "
+                "strong-impact recovery ratios were selected from Phase 3B "
+                "Development Session A and require untouched Session B validation"
             ),
         }
 
@@ -345,6 +369,7 @@ class CandidateStartDiagnostic:
     stream_epoch: int
     onset_frame_index: int
     block: ArmedBlockDiagnostic
+    route: str = "ordinary"
 
 
 @dataclass(frozen=True)
@@ -719,7 +744,14 @@ class StreamingTapDetector:
         ):
             self._diagnostic_interval_closest_block = gate_diagnostic
 
-        triggered = rms_passed and peak_passed and crest_passed
+        ordinary_triggered = rms_passed and peak_passed and crest_passed
+        candidate_route = _candidate_start_route(
+            ordinary_triggered=ordinary_triggered,
+            rms_ratio=gate_diagnostic.rms_ratio,
+            peak_ratio=gate_diagnostic.peak_ratio,
+            config=self.config,
+        )
+        triggered = candidate_route is not None
         if not triggered:
             alpha = float(self.config.noise_floor_adaptation_alpha)
             self._noise_floor_rms = max(
@@ -728,7 +760,9 @@ class StreamingTapDetector:
             )
             return []
 
-        self._increment_diagnostic("all_gates_pass_count")
+        if ordinary_triggered:
+            self._increment_diagnostic("all_gates_pass_count")
+        assert candidate_route is not None
 
         crossing_offsets = np.flatnonzero(frame_peaks >= peak_threshold)
         if crossing_offsets.size == 0:
@@ -751,6 +785,16 @@ class StreamingTapDetector:
                 "onset_crest_factor": float(crest_factor),
                 "onset_rms_threshold": float(rms_threshold),
                 "onset_peak_threshold": float(peak_threshold),
+                "onset_rms_ratio": float(gate_diagnostic.rms_ratio),
+                "onset_peak_ratio": float(gate_diagnostic.peak_ratio),
+                "onset_crest_ratio": float(gate_diagnostic.crest_ratio),
+                "candidate_start_route": candidate_route,
+                "strong_impact_recovery_rms_ratio_minimum": float(
+                    self.config.strong_impact_recovery_rms_ratio
+                ),
+                "strong_impact_recovery_peak_ratio_minimum": float(
+                    self.config.strong_impact_recovery_peak_ratio
+                ),
             },
         )
         self._increment_diagnostic("onset_candidates_started")
@@ -759,6 +803,7 @@ class StreamingTapDetector:
                 stream_epoch=self._stream_epoch,
                 onset_frame_index=onset,
                 block=gate_diagnostic,
+                route=candidate_route,
             )
         )
         self._state = DetectorState.COLLECTING
@@ -1063,6 +1108,25 @@ def _nonnegative_gate_ratio(value: float, threshold: float) -> float:
     if math.isinf(value):
         return math.inf
     return float(value / threshold)
+
+
+def _candidate_start_route(
+    *,
+    ordinary_triggered: bool,
+    rms_ratio: float,
+    peak_ratio: float,
+    config: StreamingDetectorConfig,
+) -> str | None:
+    """Apply the fixed Stage 1 OR policy without duplicating a candidate."""
+
+    if ordinary_triggered:
+        return "ordinary"
+    if (
+        rms_ratio >= float(config.strong_impact_recovery_rms_ratio)
+        and peak_ratio >= float(config.strong_impact_recovery_peak_ratio)
+    ):
+        return "strong_impact_recovery"
+    return None
 
 
 def _strongest_transient_center(

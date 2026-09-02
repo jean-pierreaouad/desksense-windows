@@ -16,6 +16,7 @@ from desksense.streaming import (
     DetectorState,
     StreamingDetectorConfig,
     StreamingTapDetector,
+    _candidate_start_route,
 )
 
 
@@ -106,7 +107,8 @@ def test_default_geometry_preserves_validated_window_domain() -> None:
     assert config.transient_energy_window_frames == 240
     assert config.refractory_frames == 12_000
     assert config.history_capacity_frames == 11_040
-    assert "not physically validated" in config.to_metadata()["threshold_status"]
+    assert "Development Session A" in config.to_metadata()["threshold_status"]
+    assert "Session B validation" in config.to_metadata()["threshold_status"]
 
 
 def test_no_candidate_is_emitted_during_startup_learning() -> None:
@@ -132,9 +134,89 @@ def test_deterministic_quiet_noise_does_not_trigger_after_learning() -> None:
 def test_sustained_non_impulsive_level_is_handled_without_trigger() -> None:
     audio = np.zeros((1_000, 2), dtype=np.float32)
     audio[100:] = (0.02, -0.02)
-    detector = StreamingTapDetector(_small_config())
+    detector = StreamingTapDetector(
+        _small_config(
+            strong_impact_recovery_rms_ratio=1.0e9,
+            strong_impact_recovery_peak_ratio=1.0e9,
+        )
+    )
 
     assert detector.process_chunk(audio) == ()
+
+
+def test_strong_impact_recovery_requires_both_inclusive_ratios() -> None:
+    config = _small_config()
+
+    assert _candidate_start_route(
+        ordinary_triggered=False, rms_ratio=6.0, peak_ratio=8.0, config=config
+    ) == "strong_impact_recovery"
+    assert _candidate_start_route(
+        ordinary_triggered=False, rms_ratio=5.999, peak_ratio=20.0, config=config
+    ) is None
+    assert _candidate_start_route(
+        ordinary_triggered=False, rms_ratio=20.0, peak_ratio=7.999, config=config
+    ) is None
+
+
+def test_ordinary_route_has_precedence_and_never_duplicates_candidate() -> None:
+    config = _small_config()
+
+    assert _candidate_start_route(
+        ordinary_triggered=True, rms_ratio=20.0, peak_ratio=20.0, config=config
+    ) == "ordinary"
+
+
+def test_ordinary_core_result_and_floor_are_unchanged_by_additive_route() -> None:
+    audio = _impulse_stream()
+    production = StreamingTapDetector(_small_config())
+    recovery_disabled = StreamingTapDetector(
+        _small_config(
+            strong_impact_recovery_rms_ratio=1.0e9,
+            strong_impact_recovery_peak_ratio=1.0e9,
+        )
+    )
+
+    production_results = production.process_chunk(audio)
+    disabled_results = recovery_disabled.process_chunk(audio)
+
+    assert len(production_results) == len(disabled_results) == 1
+    assert _event_projection(production_results[0]) == _event_projection(
+        disabled_results[0]
+    )
+    assert production.diagnostic_snapshot().learned_noise_floor_rms == (
+        recovery_disabled.diagnostic_snapshot().learned_noise_floor_rms
+    )
+    assert production.drain_candidate_start_diagnostics()[0].route == "ordinary"
+    assert recovery_disabled.drain_candidate_start_diagnostics()[0].route == "ordinary"
+
+
+def test_strong_low_crest_block_recovers_with_route_and_raw_window_unchanged() -> None:
+    config = _small_config(
+        minimum_onset_rms=0.001,
+        minimum_onset_peak=0.001,
+        minimum_crest_factor=3.0,
+    )
+    audio = np.zeros((800, 2), dtype=np.float32)
+    audio[200:205] = 0.006
+    audio[200, 0] = 0.009
+    detector = StreamingTapDetector(config)
+
+    results = detector.process_chunk(audio)
+    starts = detector.drain_candidate_start_diagnostics()
+
+    assert len(results) == 1
+    assert len(starts) == 1
+    assert starts[0].route == "strong_impact_recovery"
+    assert results[0].metrics["candidate_start_route"] == "strong_impact_recovery"
+    assert results[0].metrics["onset_crest_factor"] < config.minimum_crest_factor
+    assert results[0].candidate_window is not None
+    assert np.array_equal(
+        results[0].candidate_window,
+        audio[
+            results[0].window_start_frame_index :
+            results[0].window_end_frame_index_exclusive
+        ],
+    )
 
 
 def test_isolated_impulse_emits_one_exact_centered_candidate() -> None:
@@ -142,8 +224,11 @@ def test_isolated_impulse_emits_one_exact_centered_candidate() -> None:
     detector = StreamingTapDetector(_small_config())
 
     results = detector.process_chunk(audio)
+    starts = detector.drain_candidate_start_diagnostics()
 
     assert len(results) == 1
+    assert len(starts) == 1
+    assert starts[0].route == "ordinary"
     result = results[0]
     assert result.status == "detected"
     assert result.rejection_reasons == ()

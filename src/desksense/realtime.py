@@ -3,7 +3,8 @@
 This module deliberately does not import :mod:`sounddevice`.  A compatible
 audio backend is supplied by the CLI after its existing lazy import.  The
 PortAudio callback copies and queues audio only; the calling/main thread owns
-detector processing, feature extraction, frozen inference, and event output.
+detector processing, frozen tapness validation, spatial feature extraction,
+frozen spatial inference, and event output.
 """
 
 from __future__ import annotations
@@ -31,6 +32,13 @@ from desksense.streaming import (
     DetectorState,
     StreamingDetectorConfig,
     StreamingTapDetector,
+)
+from desksense.tapness import (
+    TapnessBaselineError,
+    classify_tapness_metrics,
+    extract_descriptive_tapness_metrics,
+    load_tapness_baseline,
+    validate_tapness_stage1_config,
 )
 
 
@@ -401,14 +409,16 @@ def process_detection_result(
     result: DetectionResult,
     baseline: LiveBaselineSpec,
     *,
+    tapness_baseline: Mapping[str, Any] | None = None,
     callback_sequence: int | None = None,
     timing: Mapping[str, int | float | None] | None = None,
     clock_ns: Callable[[], int] = time.perf_counter_ns,
 ) -> LiveSensingEvent:
-    """Turn one detector result into a label-free live event.
+    """Apply optional frozen tapness then unchanged frozen spatial inference.
 
-    Acceptance is based only on ``result.status == 'detected'``.  A rejected
-    near-clipping result can contain a candidate array and is never classified.
+    Only ``result.status == 'detected'`` reaches Stage 2. A Stage 2 rejection
+    never reaches Stage 3. A detector-rejected near-clipping result can contain
+    a candidate array and is never classified.
     """
 
     common = {
@@ -461,6 +471,48 @@ def process_detection_result(
             },
             **{key: value for key, value in common.items() if key != "details"},
         )
+
+    if tapness_baseline is not None:
+        if result.window_start_frame_index is None:
+            return LiveSensingEvent(
+                event_type="rejection",
+                status="rejected",
+                message="Tapness analysis requires a valid candidate onset offset.",
+                rejection_reasons=("invalid_tapness_onset_offset",),
+                **common,
+            )
+        onset_offset = result.onset_frame_index - result.window_start_frame_index
+        try:
+            tapness_metrics = extract_descriptive_tapness_metrics(
+                candidate,
+                sample_rate_hz=baseline.sample_rate_hz,
+                onset_offset_frames=onset_offset,
+                learned_noise_floor_rms=result.metrics.get(
+                    "learned_noise_floor_rms"
+                ),
+            )
+            tapness_decision = classify_tapness_metrics(
+                tapness_metrics, tapness_baseline
+            )
+        except (TapnessBaselineError, TypeError, ValueError, OverflowError) as error:
+            return LiveSensingEvent(
+                event_type="rejection",
+                status="rejected",
+                message="Tapness candidate analysis failed safely.",
+                rejection_reasons=("tapness_inference_failed",),
+                details={**common["details"], "tapness_error": str(error)},
+                **{key: value for key, value in common.items() if key != "details"},
+            )
+        common["details"]["tapness_metrics"] = tapness_metrics
+        common["details"]["tapness_inference"] = tapness_decision
+        if not tapness_decision["tap_accepted"]:
+            return LiveSensingEvent(
+                event_type="rejection",
+                status="rejected",
+                message="Candidate rejected by the frozen tapness baseline.",
+                rejection_reasons=("tapness_non_tap",),
+                **common,
+            )
 
     try:
         features = extract_two_channel_features(candidate)
@@ -515,6 +567,7 @@ def run_live_sensing(
     *,
     device_index: int,
     baseline_path: Path,
+    tapness_baseline_path: Path | None = None,
     event_handler: Callable[[LiveSensingEvent], None],
     config: RealtimeSensingConfig | None = None,
     detector: StreamingTapDetector | None = None,
@@ -527,6 +580,17 @@ def run_live_sensing(
     settings = config or RealtimeSensingConfig()
     should_stop = (lambda: False) if stop_requested is None else stop_requested
     baseline = load_live_baseline_spec(Path(baseline_path))
+    try:
+        tapness_baseline = (
+            load_tapness_baseline(Path(tapness_baseline_path))
+            if tapness_baseline_path is not None
+            else None
+        )
+    except (TapnessBaselineError, OSError, TypeError, ValueError) as error:
+        raise RealtimeSensingError(
+            f"Could not load the frozen tapness baseline: {error}",
+            category="tapness_baseline_error",
+        ) from error
     selected_device = _resolve_selected_device(audio_backend, device_index)
     validate_live_compatibility(baseline, selected_device)
 
@@ -540,6 +604,14 @@ def run_live_sensing(
         )
     )
     _validate_detector_domain(live_detector, baseline)
+    if tapness_baseline is not None:
+        try:
+            validate_tapness_stage1_config(live_detector.config, tapness_baseline)
+        except TapnessBaselineError as error:
+            raise RealtimeSensingError(
+                f"Tapness baseline is incompatible with the live detector: {error}",
+                category="tapness_baseline_error",
+            ) from error
     _check_input_settings(audio_backend, selected_device, baseline)
 
     callback_abort = getattr(audio_backend, "CallbackAbort", None)
@@ -606,6 +678,7 @@ def run_live_sensing(
                 stream,
                 settings,
                 live_detector,
+                tapness_baseline_path=tapness_baseline_path,
             )
         )
 
@@ -778,6 +851,7 @@ def run_live_sensing(
                 event = process_detection_result(
                     result,
                     baseline,
+                    tapness_baseline=tapness_baseline,
                     callback_sequence=packet.callback_sequence,
                     timing=event_timing,
                     clock_ns=clock_ns,
@@ -949,6 +1023,8 @@ def _startup_event(
     stream: Any,
     settings: RealtimeSensingConfig,
     detector: StreamingTapDetector,
+    *,
+    tapness_baseline_path: Path | None,
 ) -> LiveSensingEvent:
     host_api = device.get("host_api", {})
     return LiveSensingEvent(
@@ -967,6 +1043,11 @@ def _startup_event(
             "tap_window_frames": baseline.tap_window_frames,
             "baseline_path": str(baseline.baseline_path),
             "baseline_source_session_id": baseline.source_session_id,
+            "tapness_baseline_path": (
+                str(tapness_baseline_path)
+                if tapness_baseline_path is not None
+                else None
+            ),
             "threshold_db": baseline.threshold_db,
             "direction": baseline.direction,
             "queue_capacity_packets": settings.queue_capacity_packets,
@@ -1009,11 +1090,11 @@ def _candidate_start_event(
     return LiveSensingEvent(
         event_type="diagnostic",
         status="candidate_started",
-        message="Existing onset gate started a candidate collection.",
+        message=f"Stage 1 {record.route} route started a candidate collection.",
         stream_epoch=record.stream_epoch,
         callback_sequence=callback_sequence,
         onset_frame_index=record.onset_frame_index,
-        details={"gate_block": asdict(block)},
+        details={"candidate_start_route": record.route, "gate_block": asdict(block)},
     )
 
 

@@ -3,12 +3,14 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
 import pytest
+
+import desksense.robustness as robustness
 
 from desksense.robustness import (
     NEGATIVE_ACTIVITIES,
@@ -512,6 +514,77 @@ def test_frozen_spatial_classification_uses_only_associated_completions(
     assert spatial["correct_count"] == 1
 
 
+def test_stage2_rejection_blocks_stage3_and_uses_correct_denominators(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session = _single_positive_session(tmp_path)
+    fake = _FakeReplayDetector(
+        starts=(_candidate_start(50_000),),
+        results=(_detection_result(50_000),),
+    )
+    fake.config = StreamingTapDetector().config
+    monkeypatch.setattr(robustness, "validate_tapness_stage1_config", lambda *args: None)
+    monkeypatch.setattr(
+        robustness,
+        "classify_tapness_metrics",
+        lambda *args: {
+            "predicted_label": "NON_TAP",
+            "tap_accepted": False,
+            "uncalibrated_model_output": 0.1,
+            "decision_score": -1.0,
+            "decision_threshold": 0.4,
+            "model_margin": -0.3,
+            "tie_rule": "score >= threshold predicts TAP",
+            "score_is_calibrated_probability": False,
+        },
+    )
+
+    report = replay_robustness_dataset(
+        session.directory,
+        baseline_path=Path("baselines/lenovo-left-right-v1.json"),
+        tapness_baseline_path=Path("baselines/lenovo-tapness-v1.json"),
+        detector_factory=lambda: fake,
+        now_fn=lambda: datetime(2026, 8, 31, tzinfo=timezone.utc),
+    )
+
+    event = report["positive"]["attempts"][0]["completed_events"][0]
+    summary = report["positive"]["summary"]
+    assert event["frozen_tapness_prediction"]["tap_accepted"] is False
+    assert event["frozen_spatial_prediction"] is None
+    assert summary["stage2_tapness"]["attempts_with_accepted_tap"] == 0
+    assert summary["end_to_end"]["total_intended_taps"] == 1
+    assert summary["end_to_end"]["intended_taps_accepted_and_spatially_correct"] == 0
+
+
+def test_stage1_policy_mismatch_fails_before_offline_stage2(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session = _single_positive_session(tmp_path)
+    fake = _FakeReplayDetector(
+        starts=(_candidate_start(50_000),),
+        results=(_detection_result(50_000),),
+    )
+    fake.config = replace(
+        StreamingTapDetector().config,
+        minimum_crest_factor=2.5,
+    )
+    monkeypatch.setattr(
+        robustness,
+        "classify_tapness_metrics",
+        lambda *args: pytest.fail("Stage 2 must not run after a policy mismatch"),
+    )
+
+    with pytest.raises(robustness.RobustnessError, match="incompatible") as error:
+        replay_robustness_dataset(
+            session.directory,
+            tapness_baseline_path=Path("baselines/lenovo-tapness-v1.json"),
+            detector_factory=lambda: fake,
+            now_fn=lambda: datetime(2026, 8, 31, tzinfo=timezone.utc),
+        )
+
+    assert error.value.category == "tapness_baseline_error"
+
+
 def test_negative_replay_excludes_warmup_events_and_uses_labeled_denominator(
     tmp_path,
 ) -> None:
@@ -802,7 +875,7 @@ def test_descriptive_tapness_metrics_are_finite_and_do_not_modify_raw_window() -
     assert metrics["impact_peak_absolute"] == pytest.approx(0.10)
     assert metrics["onset_contrast_rms_ratio"] > 1.0
     assert 0.0 <= metrics["early_energy_fraction"] <= 1.0
-    assert metrics["decision_use"] == "descriptive_only_no_tap_validation"
+    assert metrics["decision_use"] == "descriptive_only_or_frozen_tapness_v1_input"
     json.dumps(metrics, allow_nan=False)
 
 

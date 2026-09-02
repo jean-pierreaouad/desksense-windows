@@ -1,8 +1,8 @@
-"""Phase 3B.0 robustness evidence collection and unchanged-detector replay.
+"""Phase 3B robustness evidence collection and versioned detector replay.
 
-This module intentionally adds no production onset or tap-validation policy.
-It stores explicitly guided evidence, replays the current detector offline, and
-computes descriptive research metrics that do not affect any detector result.
+This module stores explicitly guided evidence, replays the current production
+Stage 1 policy offline, and can apply explicitly supplied frozen Stage 2 and
+Stage 3 artifacts without refitting them.
 """
 
 from __future__ import annotations
@@ -48,6 +48,14 @@ from desksense.robustness_dataset import (
     validate_robustness_capture,
 )
 from desksense.streaming import DetectionResult, StreamingTapDetector
+from desksense.tapness import (
+    TapnessBaselineError,
+    classify_tapness_metrics,
+    extract_descriptive_tapness_metrics,
+    load_tapness_baseline,
+    tapness_feature_schema,
+    validate_tapness_stage1_config,
+)
 
 
 POSITIVE_ZONES = ROBUSTNESS_POSITIVE_ZONES
@@ -61,16 +69,8 @@ DEFAULT_NEGATIVE_SEGMENTS_PER_ACTIVITY = 2
 DEFAULT_NEGATIVE_SEGMENT_SECONDS = 10.0
 DEFAULT_NEGATIVE_WARMUP_SECONDS = 1.0
 DEFAULT_NEGATIVE_POST_ACTIVITY_TAIL_SECONDS = 0.25
-ROBUSTNESS_REPORT_SCHEMA_VERSION = 1
+ROBUSTNESS_REPORT_SCHEMA_VERSION = 2
 ROBUSTNESS_REPORT_TYPE = "phase3_robustness_offline_replay"
-
-_METRIC_PRE_ONSET_SECONDS = 0.012
-_METRIC_IMPACT_SECONDS = 0.025
-_METRIC_EARLY_SECONDS = 0.025
-_METRIC_LATE_START_SECONDS = 0.040
-_METRIC_FRAME_SECONDS = 0.005
-_METRIC_STRONG_FRACTION_OF_PEAK = 0.50
-
 
 class RobustnessError(RuntimeError):
     """A Phase 3B.0 collection, replay, or reporting failure."""
@@ -506,148 +506,52 @@ def run_guided_robustness_collection(
     }
 
 
-def extract_descriptive_tapness_metrics(
-    candidate_window: Any,
-    *,
-    sample_rate_hz: float,
-    onset_offset_frames: int,
-    learned_noise_floor_rms: float | None = None,
-) -> dict[str, Any]:
-    """Compute fixed descriptive impact-shape metrics without gating.
-
-    A float64 processing copy is DC-centered per channel using the immediate
-    pre-onset region. Pooled squared power prevents channel cancellation. The
-    returned values are research descriptors only and contain no accept/reject
-    threshold.
-    """
-
-    audio = validate_robustness_capture(candidate_window).astype(np.float64)
-    sample_rate = float(sample_rate_hz)
-    if not math.isfinite(sample_rate) or sample_rate <= 0.0:
-        raise ValueError("Tapness metric sample rate must be positive and finite.")
-    if (
-        isinstance(onset_offset_frames, bool)
-        or not isinstance(onset_offset_frames, int)
-        or onset_offset_frames < 0
-        or onset_offset_frames >= audio.shape[0]
-    ):
-        raise ValueError("Tapness metric onset offset is outside the candidate.")
-
-    pre_frames = max(1, round(sample_rate * _METRIC_PRE_ONSET_SECONDS))
-    pre_start = max(0, onset_offset_frames - pre_frames)
-    pre = audio[pre_start:onset_offset_frames]
-    dc_reference = pre if pre.shape[0] else audio
-    centered = audio - np.mean(dc_reference, axis=0, keepdims=True)
-    pre_centered = centered[pre_start:onset_offset_frames]
-    pre_rms = _pooled_rms(pre_centered)
-
-    impact_end = min(
-        audio.shape[0], onset_offset_frames + round(sample_rate * _METRIC_IMPACT_SECONDS)
-    )
-    impact = centered[onset_offset_frames:impact_end]
-    frame_count = max(1, round(sample_rate * _METRIC_FRAME_SECONDS))
-    impact_frame_rms = [
-        _pooled_rms(impact[start : start + frame_count])
-        for start in range(0, impact.shape[0], frame_count)
-    ]
-    impact_rms = max(impact_frame_rms, default=0.0)
-    impact_peak = float(np.max(np.abs(impact))) if impact.size else 0.0
-    noise_floor = _finite_nonnegative(learned_noise_floor_rms)
-    reference_floor = max(pre_rms, noise_floor or 0.0, np.finfo(np.float64).tiny)
-
-    post = centered[onset_offset_frames:]
-    post_power = np.mean(np.square(post), axis=1) if post.size else np.empty(0)
-    peak_power = float(np.max(post_power)) if post_power.size else 0.0
-    effective_duration = (
-        float(np.sum(post_power) / peak_power / sample_rate)
-        if peak_power > 0.0
-        else 0.0
-    )
-    early_end = min(
-        audio.shape[0], onset_offset_frames + round(sample_rate * _METRIC_EARLY_SECONDS)
-    )
-    early_power = centered[onset_offset_frames:early_end]
-    total_energy = float(np.sum(np.square(post)))
-    early_fraction = (
-        float(np.sum(np.square(early_power)) / total_energy)
-        if total_energy > 0.0
-        else 0.0
-    )
-    late_start = min(
-        audio.shape[0], onset_offset_frames + round(sample_rate * _METRIC_LATE_START_SECONDS)
-    )
-    late_rms = _pooled_rms(centered[late_start:])
-    late_ratio = float(late_rms / impact_rms) if impact_rms > 0.0 else 0.0
-    instantaneous_peak = (
-        np.max(np.abs(impact), axis=1) if impact.shape[0] else np.empty(0)
-    )
-    strong_fraction = (
-        float(
-            np.count_nonzero(
-                instantaneous_peak
-                >= impact_peak * _METRIC_STRONG_FRACTION_OF_PEAK
-            )
-            / instantaneous_peak.size
-        )
-        if instantaneous_peak.size and impact_peak > 0.0
-        else 0.0
-    )
-    return {
-        "metric_schema_version": 1,
-        "processing": (
-            "float64 copy; per-channel DC reference from immediate pre-onset "
-            "audio; pooled squared multichannel power; raw candidate unchanged"
-        ),
-        "pre_onset_seconds": _METRIC_PRE_ONSET_SECONDS,
-        "impact_search_seconds": _METRIC_IMPACT_SECONDS,
-        "energy_frame_seconds": _METRIC_FRAME_SECONDS,
-        "early_energy_seconds": _METRIC_EARLY_SECONDS,
-        "late_start_seconds": _METRIC_LATE_START_SECONDS,
-        "strong_sample_peak_fraction": _METRIC_STRONG_FRACTION_OF_PEAK,
-        "pre_onset_rms": float(pre_rms),
-        "impact_window_rms": float(impact_rms),
-        "impact_peak_absolute": float(impact_peak),
-        "reference_floor_rms": float(reference_floor),
-        "onset_contrast_rms_ratio": float(impact_rms / reference_floor),
-        "peak_dominant_contrast_ratio": float(impact_peak / reference_floor),
-        "effective_energy_duration_seconds": float(effective_duration),
-        "early_energy_fraction": float(early_fraction),
-        "late_to_impact_rms_ratio": float(late_ratio),
-        "strong_sample_fraction": float(strong_fraction),
-        "decision_use": "descriptive_only_no_tap_validation",
-    }
-
-
 def replay_robustness_dataset(
     session_path: Path,
     *,
     baseline_path: Path | None = None,
+    tapness_baseline_path: Path | None = None,
     detector_factory: Callable[[], StreamingTapDetector] = StreamingTapDetector,
     now_fn: Callable[[], datetime] | None = None,
 ) -> dict[str, Any]:
-    """Replay validated local evidence through the unchanged current detector."""
+    """Replay validated local evidence through the versioned current pipeline."""
 
     dataset = load_robustness_dataset(Path(session_path))
     baseline = load_frozen_baseline(Path(baseline_path)) if baseline_path else None
+    try:
+        tapness_baseline = (
+            load_tapness_baseline(Path(tapness_baseline_path))
+            if tapness_baseline_path
+            else None
+        )
+    except TapnessBaselineError as error:
+        raise RobustnessError(
+            f"Could not load the frozen tapness baseline: {error}",
+            category="tapness_baseline_error",
+        ) from error
     if baseline is not None:
         _validate_baseline_for_robustness(baseline, dataset)
     clock = (lambda: datetime.now(timezone.utc)) if now_fn is None else now_fn
 
     positive_results = [
-        _replay_positive_record(record, detector_factory, baseline)
+        _replay_positive_record(record, detector_factory, baseline, tapness_baseline)
         for record in dataset.positive_records
     ]
     negative_results = [
-        _replay_negative_record(record, detector_factory)
+        _replay_negative_record(record, detector_factory, tapness_baseline)
         for record in dataset.negative_records
     ]
-    positive_summary = _summarize_positive_replay(positive_results, baseline)
-    negative_summary = _summarize_negative_replay(negative_results)
+    positive_summary = _summarize_positive_replay(
+        positive_results, baseline, tapness_baseline
+    )
+    negative_summary = _summarize_negative_replay(
+        negative_results, tapness_baseline
+    )
     completeness = _collection_completeness(dataset)
     report = {
         "report_schema_version": ROBUSTNESS_REPORT_SCHEMA_VERSION,
         "report_type": ROBUSTNESS_REPORT_TYPE,
-        "project_phase": "3B.0",
+        "project_phase": "3B.2" if tapness_baseline is not None else "3B.0",
         "generated_at_utc": _utc_timestamp(clock),
         "session_id": dataset.session["session_id"],
         "session_path": str(dataset.directory),
@@ -660,9 +564,10 @@ def replay_robustness_dataset(
         },
         "collection_completeness": completeness,
         "detector_protocol": {
-            "implementation": "current unchanged StreamingTapDetector",
-            "new_stage1_logic_used": False,
-            "stage2_validator_used": False,
+            "implementation": "current versioned StreamingTapDetector",
+            "new_stage1_logic_used": True,
+            "stage1_policy": "ordinary OR strong_impact_recovery (RMS >= 6x AND peak >= 8x)",
+            "stage2_validator_used": tapness_baseline is not None,
             "each_saved_capture_is_a_separate_continuity_epoch": True,
             "positive_candidate_recall_definition": (
                 "fraction of intended attempts with at least one candidate-start "
@@ -673,6 +578,7 @@ def replay_robustness_dataset(
             "negative_rate_denominator": "labeled activity interval only",
         },
         "tapness_feature_definitions": tapness_feature_definitions(),
+        "tapness_feature_schema": tapness_feature_schema(),
         "positive": {
             "summary": positive_summary,
             "attempts": positive_results,
@@ -686,9 +592,31 @@ def replay_robustness_dataset(
             if baseline is not None
             else {"applied": False}
         ),
+        "frozen_tapness_baseline": (
+            {
+                "applied": True,
+                "artifact_path": str(Path(tapness_baseline_path)),
+                "artifact_type": tapness_baseline["artifact_type"],
+                "source_development_session_id": tapness_baseline[
+                    "source_development_dataset"
+                ]["session_id"],
+                "decision_threshold": tapness_baseline["model"][
+                    "decision_threshold"
+                ],
+                "refit_performed": False,
+                "score_is_calibrated_probability": False,
+            }
+            if tapness_baseline is not None
+            else {"applied": False}
+        ),
         "limitations": [
             "This is offline development replay, not an untouched Phase 3B validation.",
-            "Descriptive tapness metrics do not accept or reject candidates.",
+            (
+                "Tapness feature extraction alone is descriptive; the explicitly "
+                "supplied frozen Stage 2 artifact performs acceptance/rejection."
+                if tapness_baseline is not None
+                else "Tapness metrics are descriptive only; no Stage 2 artifact was supplied."
+            ),
             "Guided positive captures do not contain an independently measured physical impact timestamp.",
             "The cue-relative positive association interval is an engineering protocol, not a measured impact timestamp.",
             "Events outside a positive association interval do not satisfy intended-tap recall or spatial correctness.",
@@ -727,7 +655,7 @@ def format_robustness_summary(report: Mapping[str, Any]) -> str:
     negative = report["negative"]["summary"]
     spatial = positive["conditional_frozen_spatial"]
     lines = [
-        "DeskSense Phase 3B.0 offline robustness replay",
+        f"DeskSense Phase {report['project_phase']} offline robustness replay",
         f"Session: {report['session_id']}",
         (
             "Collection complete: "
@@ -759,6 +687,19 @@ def format_robustness_summary(report: Mapping[str, Any]) -> str:
         )
     else:
         lines.append("Conditional frozen spatial result: not requested")
+    stage2 = positive["stage2_tapness"]
+    if stage2["applied"]:
+        lines.append(
+            "Frozen Stage 2 tapness result: "
+            f"{stage2['attempts_with_accepted_tap']}/"
+            f"{positive['total_intended_attempts']} intended attempts accepted"
+        )
+        lines.append(
+            "End-to-end development result: "
+            f"{positive['end_to_end']['intended_taps_accepted_and_spatially_correct']}/"
+            f"{positive['end_to_end']['total_intended_taps']} accepted and "
+            "spatially correct"
+        )
     lines.extend(
         [
             (
@@ -787,23 +728,27 @@ def format_robustness_summary(report: Mapping[str, Any]) -> str:
                 f"detected={negative['post_activity_completed_detections']}, "
                 f"rejected={negative['post_activity_completed_rejections']}"
             ),
-            "Tapness metrics are descriptive only; no Stage 2 gate was applied.",
+            (
+                "Tapness metrics feed the explicitly supplied frozen Stage 2 artifact."
+                if stage2["applied"]
+                else "Tapness metrics are descriptive only; no Stage 2 gate was applied."
+            ),
         ]
     )
+    if negative["stage2_tapness_applied"]:
+        lines.append(
+            "Stage 2 negative false accepts: "
+            f"{negative['stage2_false_accepted_events']} "
+            f"({negative['stage2_false_accept_rate_per_labeled_minute']:.3f}/min)"
+        )
     return "\n".join(lines)
 
 
 def tapness_feature_definitions() -> dict[str, str]:
+    schema = tapness_feature_schema()
     return {
-        "pre_onset_rms": "Pooled RMS over up to 12 ms immediately before detector onset.",
-        "impact_window_rms": "Maximum pooled RMS among 5 ms frames in the first 25 ms from onset.",
-        "impact_peak_absolute": "Maximum absolute sample across both channels in the first 25 ms from onset.",
-        "onset_contrast_rms_ratio": "Impact-window RMS divided by the larger of pre-onset RMS, learned floor, and a numerical floor.",
-        "peak_dominant_contrast_ratio": "Impact peak divided by the same reference floor; descriptive, with no Holo multiplier or decision threshold.",
-        "effective_energy_duration_seconds": "Post-onset pooled energy divided by maximum post-onset pooled instantaneous power and sample rate; threshold-free energy-equivalent duration.",
-        "early_energy_fraction": "Fraction of post-onset multichannel energy occurring in the first 25 ms.",
-        "late_to_impact_rms_ratio": "Pooled RMS from 40 ms after onset to window end divided by impact-window RMS.",
-        "strong_sample_fraction": "Fraction of impact-region frames whose maximum channel magnitude is at least 50% of impact peak.",
+        str(feature["name"]): str(feature["definition"])
+        for feature in schema["features"]
     }
 
 
@@ -811,8 +756,11 @@ def _replay_positive_record(
     record: RobustnessRecord,
     detector_factory: Callable[[], StreamingTapDetector],
     baseline: Mapping[str, Any] | None,
+    tapness_baseline: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     detector = detector_factory()
+    if tapness_baseline is not None:
+        _require_tapness_detector_compatibility(detector, tapness_baseline)
     results = tuple(detector.process_chunk(record.capture))
     starts = tuple(detector.drain_candidate_start_diagnostics())
     snapshot = detector.diagnostic_snapshot()
@@ -849,6 +797,7 @@ def _replay_positive_record(
                 result,
                 baseline if associated else None,
                 record.metadata["intended_zone"] if associated else None,
+                tapness_baseline=tapness_baseline if associated else None,
                 interval_relation=relation,
             )
         )
@@ -898,8 +847,11 @@ def _replay_positive_record(
 def _replay_negative_record(
     record: RobustnessRecord,
     detector_factory: Callable[[], StreamingTapDetector],
+    tapness_baseline: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     detector = detector_factory()
+    if tapness_baseline is not None:
+        _require_tapness_detector_compatibility(detector, tapness_baseline)
     results = tuple(detector.process_chunk(record.capture))
     starts = tuple(detector.drain_candidate_start_diagnostics())
     activity_start = int(record.metadata["activity_start_frame_index"])
@@ -923,6 +875,19 @@ def _replay_negative_record(
             result,
             None,
             None,
+            tapness_baseline=(
+                tapness_baseline
+                if _interval_relation(
+                    result.onset_frame_index,
+                    activity_start,
+                    activity_end,
+                    inside="activity",
+                    before="warmup",
+                    after="post_activity",
+                )
+                == "activity"
+                else None
+            ),
             interval_relation=_interval_relation(
                 result.onset_frame_index,
                 activity_start,
@@ -1010,8 +975,23 @@ def _candidate_start_report(start: Any, interval_relation: str) -> dict[str, Any
         "stream_epoch": int(start.stream_epoch),
         "onset_frame_index": int(start.onset_frame_index),
         "interval_relation": interval_relation,
+        "candidate_start_route": str(getattr(start, "route", "ordinary")),
         "gate_evidence": asdict(start.block),
     }
+
+
+def _require_tapness_detector_compatibility(
+    detector: Any, artifact: Mapping[str, Any]
+) -> None:
+    """Convert policy mismatch into a stable offline replay error."""
+
+    try:
+        validate_tapness_stage1_config(getattr(detector, "config", None), artifact)
+    except TapnessBaselineError as error:
+        raise RobustnessError(
+            f"Tapness baseline is incompatible with the replay detector: {error}",
+            category="tapness_baseline_error",
+        ) from error
 
 
 def _completed_event_report(
@@ -1019,6 +999,7 @@ def _completed_event_report(
     baseline: Mapping[str, Any] | None,
     intended_zone: str | None,
     *,
+    tapness_baseline: Mapping[str, Any] | None = None,
     interval_relation: str,
 ) -> dict[str, Any]:
     report: dict[str, Any] = {
@@ -1035,6 +1016,7 @@ def _completed_event_report(
         "candidate_window_retained_in_report": False,
         "detector_metrics": dict(result.metrics),
         "descriptive_tapness_metrics": None,
+        "frozen_tapness_prediction": None,
         "frozen_spatial_prediction": None,
     }
     candidate = result.candidate_window
@@ -1052,7 +1034,23 @@ def _completed_event_report(
             onset_offset_frames=onset_offset,
             learned_noise_floor_rms=result.metrics.get("learned_noise_floor_rms"),
         )
-    if baseline is not None and intended_zone is not None and result.status == "detected":
+    tapness_accepted = tapness_baseline is None
+    if (
+        tapness_baseline is not None
+        and result.status == "detected"
+        and report["descriptive_tapness_metrics"] is not None
+    ):
+        tapness_prediction = classify_tapness_metrics(
+            report["descriptive_tapness_metrics"], tapness_baseline
+        )
+        report["frozen_tapness_prediction"] = tapness_prediction
+        tapness_accepted = bool(tapness_prediction["tap_accepted"])
+    if (
+        baseline is not None
+        and intended_zone is not None
+        and result.status == "detected"
+        and tapness_accepted
+    ):
         features = extract_two_channel_features(candidate)
         feature_value = features.get(PRIMARY_FEATURE_NAME)
         if feature_value is not None:
@@ -1079,6 +1077,7 @@ def _completed_event_report(
 def _summarize_positive_replay(
     attempts: Sequence[Mapping[str, Any]],
     baseline: Mapping[str, Any] | None,
+    tapness_baseline: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     total = len(attempts)
     with_start = sum(bool(item["stage1_candidate_started"]) for item in attempts)
@@ -1087,13 +1086,15 @@ def _summarize_positive_replay(
     )
     by_zone = {
         zone: _positive_group_summary(
-            [item for item in attempts if item["intended_zone"] == zone]
+            [item for item in attempts if item["intended_zone"] == zone],
+            tapness_baseline is not None,
         )
         for zone in POSITIVE_ZONES
     }
     by_strength = {
         strength: _positive_group_summary(
-            [item for item in attempts if item["intended_strength"] == strength]
+            [item for item in attempts if item["intended_strength"] == strength],
+            tapness_baseline is not None,
         )
         for strength in POSITIVE_STRENGTHS
     }
@@ -1104,6 +1105,32 @@ def _summarize_positive_replay(
         if event["interval_relation"] == "associated"
         and event["frozen_spatial_prediction"] is not None
     ]
+    associated_tapness = [
+        event["frozen_tapness_prediction"]
+        for attempt in attempts
+        for event in attempt["completed_events"]
+        if event["interval_relation"] == "associated"
+        and event["frozen_tapness_prediction"] is not None
+    ]
+    accepted_attempts = [
+        attempt
+        for attempt in attempts
+        if any(
+            event["interval_relation"] == "associated"
+            and event["frozen_tapness_prediction"] is not None
+            and event["frozen_tapness_prediction"]["tap_accepted"]
+            for event in attempt["completed_events"]
+        )
+    ]
+    end_to_end_correct_attempts = sum(
+        any(
+            event["interval_relation"] == "associated"
+            and event["frozen_spatial_prediction"] is not None
+            and event["frozen_spatial_prediction"]["correct"]
+            for event in attempt["completed_events"]
+        )
+        for attempt in attempts
+    )
     return {
         "total_intended_attempts": total,
         "attempts_with_associated_candidate_start": with_start,
@@ -1128,6 +1155,20 @@ def _summarize_positive_replay(
         ),
         "by_zone": by_zone,
         "by_strength": by_strength,
+        "stage2_tapness": {
+            "applied": tapness_baseline is not None,
+            "associated_candidate_event_count": len(associated_tapness),
+            "accepted_candidate_event_count": sum(
+                bool(item["tap_accepted"]) for item in associated_tapness
+            ),
+            "rejected_candidate_event_count": sum(
+                not bool(item["tap_accepted"]) for item in associated_tapness
+            ),
+            "attempts_with_accepted_tap": len(accepted_attempts),
+            "intended_attempt_acceptance_rate": (
+                float(len(accepted_attempts) / total) if total else 0.0
+            ),
+        },
         "conditional_frozen_spatial": {
             "applied": baseline is not None,
             "classified_count": len(predictions),
@@ -1138,13 +1179,35 @@ def _summarize_positive_replay(
                 else None
             ),
         },
+        "end_to_end": {
+            "spatial_baseline_applied": baseline is not None,
+            "tapness_baseline_applied": tapness_baseline is not None,
+            "intended_taps_accepted_and_spatially_correct": (
+                end_to_end_correct_attempts
+            ),
+            "total_intended_taps": total,
+            "success_rate": (
+                float(end_to_end_correct_attempts / total) if total else 0.0
+            ),
+        },
     }
 
 
-def _positive_group_summary(items: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _positive_group_summary(
+    items: Sequence[Mapping[str, Any]], tapness_applied: bool
+) -> dict[str, Any]:
     total = len(items)
     with_start = sum(bool(item["stage1_candidate_started"]) for item in items)
     with_completion = sum(bool(item["associated_completed_result"]) for item in items)
+    with_tapness_acceptance = sum(
+        any(
+            event["interval_relation"] == "associated"
+            and event["frozen_tapness_prediction"] is not None
+            and event["frozen_tapness_prediction"]["tap_accepted"]
+            for event in item["completed_events"]
+        )
+        for item in items
+    )
     return {
         "intended_attempts": total,
         "attempts_with_associated_candidate_start": with_start,
@@ -1155,25 +1218,34 @@ def _positive_group_summary(items: Sequence[Mapping[str, Any]]) -> dict[str, Any
         "associated_completion_rate": (
             float(with_completion / total) if total else 0.0
         ),
+        "stage2_applied": tapness_applied,
+        "attempts_with_stage2_acceptance": with_tapness_acceptance,
+        "stage2_intended_acceptance_rate": (
+            float(with_tapness_acceptance / total) if total else 0.0
+        ),
     }
 
 
 def _summarize_negative_replay(
     segments: Sequence[Mapping[str, Any]],
+    tapness_baseline: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     return {
-        **_negative_group_summary(segments),
+        **_negative_group_summary(segments, tapness_baseline is not None),
         "segment_count": len(segments),
         "per_activity": {
             activity: _negative_group_summary(
-                [item for item in segments if item["activity"] == activity]
+                [item for item in segments if item["activity"] == activity],
+                tapness_baseline is not None,
             )
             for activity in NEGATIVE_ACTIVITIES
         },
     }
 
 
-def _negative_group_summary(items: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def _negative_group_summary(
+    items: Sequence[Mapping[str, Any]], tapness_applied: bool
+) -> dict[str, Any]:
     stored_duration = float(
         sum(float(item["stored_capture_duration_seconds"]) for item in items)
     )
@@ -1194,6 +1266,13 @@ def _negative_group_summary(items: Sequence[Mapping[str, Any]]) -> dict[str, Any
         int(item["activity_completed_rejection_count"]) for item in items
     )
     minutes = activity_duration / 60.0
+    stage2_false_accepts = sum(
+        bool(event["frozen_tapness_prediction"]["tap_accepted"])
+        for item in items
+        for event in item["completed_events"]
+        if event["interval_relation"] == "activity"
+        and event["frozen_tapness_prediction"] is not None
+    )
     return {
         "total_stored_duration_seconds": stored_duration,
         "labeled_activity_duration_seconds": activity_duration,
@@ -1225,6 +1304,11 @@ def _negative_group_summary(items: Sequence[Mapping[str, Any]]) -> dict[str, Any
         ),
         "completed_false_event_rate_per_labeled_minute": (
             float(detections / minutes) if minutes else 0.0
+        ),
+        "stage2_tapness_applied": tapness_applied,
+        "stage2_false_accepted_events": stage2_false_accepts,
+        "stage2_false_accept_rate_per_labeled_minute": (
+            float(stage2_false_accepts / minutes) if minutes else 0.0
         ),
     }
 
@@ -1539,22 +1623,6 @@ def _baseline_report_metadata(
         "refit_performed": False,
         "normalization_fitted": False,
     }
-
-
-def _pooled_rms(samples: np.ndarray[Any, Any]) -> float:
-    if samples.size == 0:
-        return 0.0
-    return float(math.sqrt(max(0.0, float(np.mean(np.square(samples))))))
-
-
-def _finite_nonnegative(value: Any) -> float | None:
-    if value is None:
-        return None
-    try:
-        converted = float(value)
-    except (TypeError, ValueError, OverflowError):
-        return None
-    return converted if math.isfinite(converted) and converted >= 0.0 else None
 
 
 def _utc_timestamp(clock: Callable[[], datetime]) -> str:

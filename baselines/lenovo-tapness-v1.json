@@ -1,0 +1,783 @@
+{
+  "artifact_schema_version": 1,
+  "artifact_type": "desksense_frozen_tapness_logistic_baseline",
+  "project_phase": "3B.2",
+  "created_at_utc": "2026-09-01T14:56:13.907087Z",
+  "target": {
+    "positive_label": "TAP",
+    "negative_label": "NON_TAP",
+    "task": "tap_vs_non_tap",
+    "spatial_labels_or_features_used": false
+  },
+  "feature_schema": {
+    "version": 1,
+    "ordered_feature_names": [
+      "pre_onset_rms",
+      "impact_window_rms",
+      "impact_peak_absolute",
+      "onset_contrast_rms_ratio",
+      "peak_dominant_contrast_ratio",
+      "effective_energy_duration_seconds",
+      "early_energy_fraction",
+      "late_to_impact_rms_ratio",
+      "strong_sample_fraction"
+    ],
+    "features": [
+      {
+        "name": "pre_onset_rms",
+        "units": "linear_full_scale",
+        "definition": "Pooled RMS over up to 12 ms immediately before detector onset.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "impact_window_rms",
+        "units": "linear_full_scale",
+        "definition": "Maximum pooled RMS among 5 ms frames in the first 25 ms from onset.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "impact_peak_absolute",
+        "units": "linear_full_scale",
+        "definition": "Maximum absolute sample over both channels in the first 25 ms from onset.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "onset_contrast_rms_ratio",
+        "units": "ratio",
+        "definition": "Impact RMS divided by the pre-onset/learned numerical reference floor.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "peak_dominant_contrast_ratio",
+        "units": "ratio",
+        "definition": "Impact peak divided by the same reference floor.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "effective_energy_duration_seconds",
+        "units": "seconds",
+        "definition": "Post-onset energy divided by peak instantaneous power and sample rate.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "early_energy_fraction",
+        "units": "fraction",
+        "definition": "Fraction of post-onset energy in the first 25 ms.",
+        "transformation": "linear"
+      },
+      {
+        "name": "late_to_impact_rms_ratio",
+        "units": "ratio",
+        "definition": "RMS from 40 ms after onset divided by impact RMS.",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "log_epsilon": 1e-12
+      },
+      {
+        "name": "strong_sample_fraction",
+        "units": "fraction",
+        "definition": "Fraction of impact frames at least half the impact peak.",
+        "transformation": "linear"
+      }
+    ],
+    "finite_value_handling": "all raw descriptors must be finite and nonnegative; logarithmic features use ln(max(value, 1e-12)); invalid values are rejected",
+    "channel_processing": "pooled squared multichannel energy; no waveform averaging",
+    "candidate_processing": "float64 processing copy; raw 9600x2 candidate unchanged"
+  },
+  "stage1_policy": {
+    "policy_version": 1,
+    "candidate_routes": {
+      "ordinary": "RMS AND peak AND crest",
+      "strong_impact_recovery": "RMS ratio AND peak ratio; no crest requirement",
+      "combination": "ordinary OR strong_impact_recovery",
+      "ordinary_route_diagnostic_precedence": true,
+      "duplicate_candidate_when_both_routes_pass": false
+    },
+    "audio_domain": {
+      "sample_rate_hz": 48000.0,
+      "channel_count": 2
+    },
+    "fixed_block": {
+      "duration_seconds": 0.005,
+      "frames": 240,
+      "overlapping_blocks": false
+    },
+    "startup_learning": {
+      "duration_seconds_requested": 0.75,
+      "frames_effective": 36000
+    },
+    "ordinary_gate": {
+      "minimum_noise_floor_rms": 1e-07,
+      "rms_noise_multiplier": 3.0,
+      "peak_noise_multiplier": 6.0,
+      "minimum_onset_rms": 0.0001220703125,
+      "minimum_onset_peak": 0.00048828125,
+      "minimum_crest_factor": 3.0
+    },
+    "strong_impact_recovery": {
+      "route_name": "strong_impact_recovery",
+      "rms_ratio_minimum_inclusive": 6.0,
+      "peak_ratio_minimum_inclusive": 8.0,
+      "crest_gate_required": false
+    },
+    "noise_floor": {
+      "adaptation_alpha_per_fixed_block": 0.02,
+      "update_policy": "existing EWMA behavior unchanged"
+    },
+    "center_search": {
+      "pre_onset_seconds": 0.012,
+      "pre_onset_frames": 576,
+      "post_onset_seconds": 0.025,
+      "post_onset_frames": 1200,
+      "transient_energy_window_seconds": 0.005,
+      "transient_energy_window_frames": 240
+    },
+    "candidate_window_geometry": {
+      "duration_seconds": 0.2,
+      "frames": 9600,
+      "pre_center_frames": 4800
+    },
+    "refractory": {
+      "duration_seconds": 0.25,
+      "frames": 12000
+    },
+    "clipping": {
+      "threshold": 0.98,
+      "reject_near_clipping": true
+    },
+    "history": {
+      "safety_seconds": 0.025,
+      "safety_frames": 1200,
+      "capacity_frames": 11040
+    }
+  },
+  "model": {
+    "type": "l2_regularized_binary_logistic_regression",
+    "fitting_algorithm": "deterministic Newton/IRLS; intercept unregularized",
+    "l2_regularization": 0.01,
+    "l2_selection": "Session A development-only three-value ablation over {1.0, 0.1, 0.01}; selected 0.01 for the strongest grouped-CV positive recall with comparable negative-source burden",
+    "standardization": {
+      "means": [
+        -7.103463079499353,
+        -4.287808820728471,
+        -3.399432819999663,
+        2.7768192485650434,
+        3.6651952492938507,
+        -5.233886507533919,
+        0.6427336419973585,
+        -1.5461489574966432,
+        0.1859493670886075
+      ],
+      "scales": [
+        0.9115108689565977,
+        1.350610091416919,
+        1.22465185977402,
+        1.6953782691174317,
+        1.5642039437504127,
+        0.8382398441490331,
+        0.2124359560163192,
+        0.7155947372702809,
+        0.11735119660012538
+      ],
+      "zero_scale_rule": "replace scale <= 1e-12 with 1.0"
+    },
+    "coefficients": [
+      0.5350237645786211,
+      1.1598071198592879,
+      0.7444352230377322,
+      0.7610588141723541,
+      0.40628292608677496,
+      1.4924968477212959,
+      0.6882329504042672,
+      0.07212106234115236,
+      -0.17800121104081018
+    ],
+    "intercept": -1.764716055308102,
+    "score": "uncalibrated sigmoid of standardized linear decision score",
+    "score_is_calibrated_probability": false,
+    "decision_threshold": 0.4495211534633274,
+    "tie_rule": "score >= threshold predicts TAP",
+    "threshold_selection": {
+      "method": "out-of-fold grouped scores; require at least 90% positive recall when feasible, then minimize maximum false accepts from one negative recording, total negative false accepts, maximize positive accepts, and choose the highest remaining threshold",
+      "minimum_positive_recall_constraint": 0.9,
+      "required_positive_accept_count": 27,
+      "selected_threshold": 0.4495211534633274,
+      "selected_out_of_fold_metrics": {
+        "threshold": 0.4495211534633274,
+        "positive_count": 29,
+        "positive_accepted_count": 28,
+        "positive_recall": 0.9655172413793104,
+        "negative_count": 50,
+        "negative_false_accept_count": 5,
+        "negative_false_accept_rate": 0.1,
+        "negative_groups_with_false_accepts": 3,
+        "maximum_false_accepts_in_one_negative_group": 2,
+        "false_accepts_by_negative_group": {
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001": 2,
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001": 2,
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002": 1
+        }
+      },
+      "session_a_tuned": true
+    }
+  },
+  "source_development_dataset": {
+    "session_id": "20260901T131308.362205Z-f9e2b1ec",
+    "evidence_role": "development_only_not_external_validation",
+    "dataset_fingerprint": {
+      "algorithm": "SHA-256",
+      "framing": "v1 domain prefix then uint64be name length/name/uint64be byte length/exact bytes",
+      "logical_order": "session.json, manifest.jsonl, then manifest record order",
+      "sha256": "88a003966141d15858a2afec390c42e567439eb5f538b958e7aa60ee7638ab83",
+      "component_count": 46,
+      "components": [
+        {
+          "relative_path": "session.json",
+          "byte_count": 8608,
+          "sha256": "89aca4b9e528bb38ebf9a49e5e26d55b5f50a61ef2eb7e7e2cd4403f231495ec"
+        },
+        {
+          "relative_path": "manifest.jsonl",
+          "byte_count": 62906,
+          "sha256": "ba5af7b0fd54852888c98f4b58590be22729d188681a3893f2840aa610fb993e"
+        },
+        {
+          "relative_path": "positives/left_light_001.npz",
+          "byte_count": 164184,
+          "sha256": "b37a0cb32c1c5c0caa632ac64adf45c7f2135b3ecfc9506e506021c7ecbdaf72"
+        },
+        {
+          "relative_path": "positives/right_light_001.npz",
+          "byte_count": 166285,
+          "sha256": "ee647de8a776f05571f8d004358a93128a136ecc21498d4133bd882713b1c8c7"
+        },
+        {
+          "relative_path": "positives/left_normal_001.npz",
+          "byte_count": 169047,
+          "sha256": "9f4f7a6f31c6aa19aee849dba303b6f7bbbe0c7a49a95c8f2b19ce7c18bb2900"
+        },
+        {
+          "relative_path": "positives/right_normal_001.npz",
+          "byte_count": 167215,
+          "sha256": "621e5794b99c7b751c9cad2d32b3d2fe5774efd21a4004a01352022dc69a4b56"
+        },
+        {
+          "relative_path": "positives/left_firm_001.npz",
+          "byte_count": 166588,
+          "sha256": "07438712f58a099979bb7afe9cf004d46e2707fee64d2ec96b99c3007197d0a6"
+        },
+        {
+          "relative_path": "positives/right_firm_001.npz",
+          "byte_count": 169791,
+          "sha256": "52a70a17c997ad1cd408d6d388d7f37b73b5e07dd5b92a77bad41283afb1d6de"
+        },
+        {
+          "relative_path": "positives/left_light_002.npz",
+          "byte_count": 164260,
+          "sha256": "dad123f2ddd48542aaf9c14df39747e7d8ba42eae5550cdac4b4894247772625"
+        },
+        {
+          "relative_path": "positives/right_light_002.npz",
+          "byte_count": 165234,
+          "sha256": "b027f1d3dcfdc518bb937900ba4211ac179dd865874b8ec8e6249fb163392188"
+        },
+        {
+          "relative_path": "positives/left_normal_002.npz",
+          "byte_count": 166397,
+          "sha256": "e71db0eb415174479f030272b9c5da2d883f7579a314871b70bd4534f1a24bcf"
+        },
+        {
+          "relative_path": "positives/right_normal_002.npz",
+          "byte_count": 167066,
+          "sha256": "c32adc98819b392d61cd245566596a47576e15b24d87ad7db890e3ebd8233702"
+        },
+        {
+          "relative_path": "positives/left_firm_002.npz",
+          "byte_count": 166448,
+          "sha256": "a2069e079fa44791bf2de4c9c4aaefa6b8e86ae506ce73232b6b45ac781252f8"
+        },
+        {
+          "relative_path": "positives/right_firm_002.npz",
+          "byte_count": 170088,
+          "sha256": "367ef8832a5ccfeb89d5b866ac08c384d85f13bdd1874dae1feda31532380ab6"
+        },
+        {
+          "relative_path": "positives/left_light_003.npz",
+          "byte_count": 163016,
+          "sha256": "55eb1e334713d38919623a4331028e21983c5e1c7176559db59590a48406fd96"
+        },
+        {
+          "relative_path": "positives/right_light_003.npz",
+          "byte_count": 163656,
+          "sha256": "aa99168e508e769f887a0a73ca5f498ce82abc9f720576f16ddc3aa40ee5f9a8"
+        },
+        {
+          "relative_path": "positives/left_normal_003.npz",
+          "byte_count": 164959,
+          "sha256": "802ef4578b3bf8d63ad856804b3683c682cc43dbd07d26098d3f28aea10994f7"
+        },
+        {
+          "relative_path": "positives/right_normal_003.npz",
+          "byte_count": 166659,
+          "sha256": "4360c90291cb9f4361036d1cde40de04f2bd38bee2e27455a2062a5142b7e412"
+        },
+        {
+          "relative_path": "positives/left_firm_003.npz",
+          "byte_count": 168051,
+          "sha256": "416ec07e5377ab15ff7dfdf1091cc110e3fa2307eb7ace1cdea4e2c1b1736c81"
+        },
+        {
+          "relative_path": "positives/right_firm_003.npz",
+          "byte_count": 169528,
+          "sha256": "2f443e0f10ffb8426cb18f3cc20768d298e983933c1523b201b1448daa300aba"
+        },
+        {
+          "relative_path": "positives/left_light_004.npz",
+          "byte_count": 166300,
+          "sha256": "51dd94c20290a92f60e83cde4b566f70f77c87c5ade1bf9f1cc5eece485e323c"
+        },
+        {
+          "relative_path": "positives/right_light_004.npz",
+          "byte_count": 162716,
+          "sha256": "56756bad711b26b92b6c44788f995c3b9a6508c188353bb95ab55c193ce5c88c"
+        },
+        {
+          "relative_path": "positives/left_normal_004.npz",
+          "byte_count": 165604,
+          "sha256": "5fe20f95abdeeab90f914c1b24198117be5bbfcf37ad057edd7b2b9a73e07e7f"
+        },
+        {
+          "relative_path": "positives/right_normal_004.npz",
+          "byte_count": 166161,
+          "sha256": "c304cd24c5de905edbc150c41d1785fbd4c384e7d0c2f823c959b4e59d6b1e1e"
+        },
+        {
+          "relative_path": "positives/left_firm_004.npz",
+          "byte_count": 167001,
+          "sha256": "16c9f90e7b1b3169d2017db98de66676fb7d42b73d6c404d4b75300d52511620"
+        },
+        {
+          "relative_path": "positives/right_firm_004.npz",
+          "byte_count": 170061,
+          "sha256": "0ba86b44ced4b0055040611349874883b8dd1b107ccdd23f28c07ac09f74b58e"
+        },
+        {
+          "relative_path": "positives/left_light_005.npz",
+          "byte_count": 163872,
+          "sha256": "f1dcf518a1ff0da337e433fe8027477bb65771f6f768341a60530fe861be3c9a"
+        },
+        {
+          "relative_path": "positives/right_light_005.npz",
+          "byte_count": 163245,
+          "sha256": "362d908a6545f05b23c20c4f99dd399424f0f387f12aa610d2afb21aa23d2620"
+        },
+        {
+          "relative_path": "positives/left_normal_005.npz",
+          "byte_count": 166055,
+          "sha256": "d8b588bbedf3af5a78d7e703c0d2f46ee760b420513fcc9b80c3a71e259a934c"
+        },
+        {
+          "relative_path": "positives/right_normal_005.npz",
+          "byte_count": 166405,
+          "sha256": "012ca142fdb3580bd027826d0f17db26b3cb33c03e8b885701ecc2c17eb73a62"
+        },
+        {
+          "relative_path": "positives/left_firm_005.npz",
+          "byte_count": 168370,
+          "sha256": "036817c8063b5e61e2c087508f81b106cc5c1871e4ee314328708407d854d715"
+        },
+        {
+          "relative_path": "positives/right_firm_005.npz",
+          "byte_count": 168836,
+          "sha256": "577bed59ed5f841a94a9d63f9b40da49a79b687812ccecd128eba598d1a24386"
+        },
+        {
+          "relative_path": "negatives/quiet_001.npz",
+          "byte_count": 871125,
+          "sha256": "4007b6c80831935a82aee2d699d9396d18e3e8d3de96688f9038089ede7bd8fe"
+        },
+        {
+          "relative_path": "negatives/typing_001.npz",
+          "byte_count": 1067243,
+          "sha256": "c16dc74608077f2b4750a72a1e4419006b2ee08e9f5cb1339dbf386a4b6ebe65"
+        },
+        {
+          "relative_path": "negatives/speech_001.npz",
+          "byte_count": 1111251,
+          "sha256": "5ef1d47bb530c4d86e3e248a6a86780ba2d39a9f29d20ebc7dbcddf7e18808c6"
+        },
+        {
+          "relative_path": "negatives/trackpad_001.npz",
+          "byte_count": 923928,
+          "sha256": "6d24db212a9984f2754e5c3bb34ed2b2f7fdb773772f945edc17919ce360a8d8"
+        },
+        {
+          "relative_path": "negatives/hand_movement_001.npz",
+          "byte_count": 906007,
+          "sha256": "3c31040d81913757ec7a1a6da28167a81ee4571dce77954230356a47b9d12be2"
+        },
+        {
+          "relative_path": "negatives/laptop_movement_001.npz",
+          "byte_count": 1352042,
+          "sha256": "54a3c210900145f1eb24283876eea7ab26b91f1af28df116d88694fc1c10774d"
+        },
+        {
+          "relative_path": "negatives/desk_object_interaction_001.npz",
+          "byte_count": 978482,
+          "sha256": "00f6cad137760b345b70a2613327585453d04c8633296c9491852be49805b347"
+        },
+        {
+          "relative_path": "negatives/quiet_002.npz",
+          "byte_count": 874711,
+          "sha256": "c684778742662c24824eccb78c21d17c7d81e506a777ff7d4dbf276d1b1e5f7e"
+        },
+        {
+          "relative_path": "negatives/typing_002.npz",
+          "byte_count": 1090858,
+          "sha256": "a3e9f3be865ca44f571077aa621f74a6837facb2e0ff96c5ccc42ca4ae565923"
+        },
+        {
+          "relative_path": "negatives/speech_002.npz",
+          "byte_count": 1064514,
+          "sha256": "09a4e870b4cf24dd2084975642eb9e520cb07adafa52ecea3dadbf5fddfcd81a"
+        },
+        {
+          "relative_path": "negatives/trackpad_002.npz",
+          "byte_count": 930934,
+          "sha256": "777119ae8d13c671feff5a4a5427f519fc29c42bf8bf7c0ae7185c053b126c09"
+        },
+        {
+          "relative_path": "negatives/hand_movement_002.npz",
+          "byte_count": 934150,
+          "sha256": "693a7397278e4ffc3b637b2924fc165df9f9a44d6235dbf64197ad96dbf0cf77"
+        },
+        {
+          "relative_path": "negatives/laptop_movement_002.npz",
+          "byte_count": 1176418,
+          "sha256": "bf38a6e13ce04f913083aa65883c6cad3361842b3382a8562e67d105eaabfffb"
+        },
+        {
+          "relative_path": "negatives/desk_object_interaction_002.npz",
+          "byte_count": 962832,
+          "sha256": "84379f2eb2e48d777a229c5abfcba9fcf6a1dd15a6400043034c384cec1092e8"
+        }
+      ]
+    },
+    "training_candidate_counts": {
+      "positive": 29,
+      "negative": 50,
+      "total": 79
+    },
+    "positive_membership_identifiers": [
+      "20260901T131308.362205Z-f9e2b1ec-left_light_001:onset:70800",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_001:onset:72480",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_001:onset:74640",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_001:onset:73010",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_001:onset:71323",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_001:onset:72105",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_002:onset:71813",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_002:onset:76084",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_002:onset:74323",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_002:onset:74640",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_002:onset:69778",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_002:onset:72960",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_003:onset:70080",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_003:onset:70320",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_003:onset:71121",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_003:onset:72197",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_003:onset:70491",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_003:onset:71803",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_004:onset:72754",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_004:onset:67920",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_004:onset:72280",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_004:onset:78373",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_004:onset:70041",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_004:onset:70506",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_005:onset:70081",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_005:onset:70111",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_005:onset:75325",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_005:onset:72756",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_005:onset:75120"
+    ],
+    "negative_membership_identifiers": [
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:150186",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:182640",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:208449",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:258601",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:308194",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:340754",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:388482",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:464762",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001:onset:521428",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001:onset:473125",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001:onset:486053",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001:onset:498502",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001:onset:67201",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001:onset:163201",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001:onset:328809",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001:onset:341766",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:104880",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:196094",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:210007",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:235930",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:269173",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:282820",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:338740",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:362196",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:396934",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:433291",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001:onset:524693",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002:onset:221448",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002:onset:324322",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002:onset:395486",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002:onset:409700",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002:onset:501840",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002:onset:71110",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002:onset:194765",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002:onset:289356",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002:onset:470792",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002:onset:516720",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002:onset:152400",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002:onset:188337",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002:onset:257396",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002:onset:351072",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002:onset:129094",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:132557",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:159316",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:232685",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:244816",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:264737",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:291120",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:410779",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002:onset:515714"
+    ],
+    "negative_source_groups": [
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002"
+    ],
+    "all_candidates_generated_by_required_stage1_policy": true,
+    "no_external_samples_used": true
+  },
+  "development_cross_validation": {
+    "protocol": "five-fold grouped out-of-fold development estimate",
+    "group_rule": "all events from one recording remain in one fold",
+    "preprocessing_rule": "means/scales/model fit use training fold only",
+    "l2_development_comparison": [
+      {
+        "l2_regularization": 1.0,
+        "selected_threshold": 0.4022815213897002,
+        "positive_accepted_count": 27,
+        "positive_count": 29,
+        "negative_false_accept_count": 6,
+        "negative_count": 50,
+        "maximum_false_accepts_in_one_negative_group": 2
+      },
+      {
+        "l2_regularization": 0.1,
+        "selected_threshold": 0.48514350294122033,
+        "positive_accepted_count": 27,
+        "positive_count": 29,
+        "negative_false_accept_count": 4,
+        "negative_count": 50,
+        "maximum_false_accepts_in_one_negative_group": 2
+      },
+      {
+        "l2_regularization": 0.01,
+        "selected_threshold": 0.4495211534633274,
+        "positive_accepted_count": 28,
+        "positive_count": 29,
+        "negative_false_accept_count": 5,
+        "negative_count": 50,
+        "maximum_false_accepts_in_one_negative_group": 2
+      }
+    ],
+    "folds": [
+      {
+        "fold_index": 0,
+        "training_example_count": 59,
+        "held_out_example_count": 20,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_001"
+        ],
+        "training_preprocessing_only": true,
+        "held_out_metrics_at_selected_threshold": {
+          "threshold": 0.4495211534633274,
+          "positive_count": 6,
+          "positive_accepted_count": 5,
+          "positive_recall": 0.8333333333333334,
+          "negative_count": 14,
+          "negative_false_accept_count": 2,
+          "negative_false_accept_rate": 0.14285714285714285,
+          "negative_groups_with_false_accepts": 1,
+          "maximum_false_accepts_in_one_negative_group": 2,
+          "false_accepts_by_negative_group": {
+            "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001": 2
+          }
+        }
+      },
+      {
+        "fold_index": 1,
+        "training_example_count": 60,
+        "held_out_example_count": 19,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_002"
+        ],
+        "training_preprocessing_only": true,
+        "held_out_metrics_at_selected_threshold": {
+          "threshold": 0.4495211534633274,
+          "positive_count": 6,
+          "positive_accepted_count": 6,
+          "positive_recall": 1.0,
+          "negative_count": 13,
+          "negative_false_accept_count": 0,
+          "negative_false_accept_rate": 0.0,
+          "negative_groups_with_false_accepts": 0,
+          "maximum_false_accepts_in_one_negative_group": 0,
+          "false_accepts_by_negative_group": {}
+        }
+      },
+      {
+        "fold_index": 2,
+        "training_example_count": 60,
+        "held_out_example_count": 19,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-typing_001"
+        ],
+        "training_preprocessing_only": true,
+        "held_out_metrics_at_selected_threshold": {
+          "threshold": 0.4495211534633274,
+          "positive_count": 6,
+          "positive_accepted_count": 6,
+          "positive_recall": 1.0,
+          "negative_count": 13,
+          "negative_false_accept_count": 0,
+          "negative_false_accept_rate": 0.0,
+          "negative_groups_with_false_accepts": 0,
+          "maximum_false_accepts_in_one_negative_group": 0,
+          "false_accepts_by_negative_group": {}
+        }
+      },
+      {
+        "fold_index": 3,
+        "training_example_count": 64,
+        "held_out_example_count": 15,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-typing_002"
+        ],
+        "training_preprocessing_only": true,
+        "held_out_metrics_at_selected_threshold": {
+          "threshold": 0.4495211534633274,
+          "positive_count": 6,
+          "positive_accepted_count": 6,
+          "positive_recall": 1.0,
+          "negative_count": 9,
+          "negative_false_accept_count": 2,
+          "negative_false_accept_rate": 0.2222222222222222,
+          "negative_groups_with_false_accepts": 1,
+          "maximum_false_accepts_in_one_negative_group": 2,
+          "false_accepts_by_negative_group": {
+            "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001": 2
+          }
+        }
+      },
+      {
+        "fold_index": 4,
+        "training_example_count": 73,
+        "held_out_example_count": 6,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_005"
+        ],
+        "training_preprocessing_only": true,
+        "held_out_metrics_at_selected_threshold": {
+          "threshold": 0.4495211534633274,
+          "positive_count": 5,
+          "positive_accepted_count": 5,
+          "positive_recall": 1.0,
+          "negative_count": 1,
+          "negative_false_accept_count": 1,
+          "negative_false_accept_rate": 1.0,
+          "negative_groups_with_false_accepts": 1,
+          "maximum_false_accepts_in_one_negative_group": 1,
+          "false_accepts_by_negative_group": {
+            "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002": 1
+          }
+        }
+      }
+    ],
+    "selected_threshold_metrics": {
+      "threshold": 0.4495211534633274,
+      "positive_count": 29,
+      "positive_accepted_count": 28,
+      "positive_recall": 0.9655172413793104,
+      "negative_count": 50,
+      "negative_false_accept_count": 5,
+      "negative_false_accept_rate": 0.1,
+      "negative_groups_with_false_accepts": 3,
+      "maximum_false_accepts_in_one_negative_group": 2,
+      "false_accepts_by_negative_group": {
+        "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001": 2,
+        "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001": 2,
+        "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002": 1
+      }
+    },
+    "external_validation": false,
+    "post_model_selection_development_evidence": true
+  },
+  "evidence_limitations": [
+    "Session A was used for feature/model/threshold development.",
+    "Grouped cross-validation is development evidence, not external validation.",
+    "The model output is not a calibrated probability.",
+    "No spatial feature, threshold, margin, or predicted zone is a tapness input.",
+    "A new untouched Session B is required after this artifact is frozen."
+  ],
+  "privacy": {
+    "derived_metadata_only": true,
+    "raw_waveforms_stored_in_artifact": false,
+    "processing": "local_offline"
+  }
+}

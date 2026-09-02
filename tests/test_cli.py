@@ -206,16 +206,41 @@ def test_sense_arguments_parse() -> None:
             "18",
             "--baseline",
             "baselines/lenovo-left-right-v1.json",
+            "--tapness-baseline",
+            "baselines/lenovo-tapness-v1.json",
         ]
     )
 
     assert args.sense is True
     assert args.device == 18
     assert args.baseline == Path("baselines/lenovo-left-right-v1.json")
+    assert args.tapness_baseline == Path("baselines/lenovo-tapness-v1.json")
     assert args.record is False
     assert args.characterize is False
     assert args.collect_dataset is False
     assert args.sense_diagnostics is False
+
+
+def test_tapness_fit_arguments_parse() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "--fit-tapness-baseline",
+            "datasets/development-a",
+            "--save-tapness-baseline",
+            "baselines/tapness.json",
+        ]
+    )
+
+    assert args.fit_tapness_baseline == Path("datasets/development-a")
+    assert args.save_tapness_baseline == Path("baselines/tapness.json")
+
+
+def test_sense_requires_tapness_baseline(capsys) -> None:
+    with pytest.raises(SystemExit):
+        cli.main(
+            ["--sense", "--device", "18", "--baseline", "spatial.json"]
+        )
+    assert "--sense requires --tapness-baseline PATH" in capsys.readouterr().err
 
 
 def test_sense_diagnostics_arguments_parse() -> None:
@@ -227,6 +252,8 @@ def test_sense_diagnostics_arguments_parse() -> None:
             "18",
             "--baseline",
             "baseline.json",
+            "--tapness-baseline",
+            "tapness.json",
         ]
     )
 
@@ -256,6 +283,8 @@ def test_sense_is_mutually_exclusive_with_existing_modes(
                 "18",
                 "--baseline",
                 "baseline.json",
+                "--tapness-baseline",
+                "tapness.json",
                 *other_mode,
             ]
         )
@@ -325,6 +354,7 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
 ) -> None:
     backend = object()
     baseline_path = Path("baselines/synthetic.json")
+    tapness_path = Path("baselines/tapness.json")
     calls: list[object] = []
 
     def fake_load_backend():
@@ -336,6 +366,7 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
         *,
         device_index,
         baseline_path,
+        tapness_baseline_path,
         event_handler,
         diagnostics_enabled,
     ):
@@ -344,6 +375,7 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
                 audio_backend,
                 device_index,
                 baseline_path,
+                tapness_baseline_path,
                 event_handler,
                 diagnostics_enabled,
             )
@@ -368,6 +400,8 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
             "18",
             "--baseline",
             str(baseline_path),
+            "--tapness-baseline",
+            str(tapness_path),
         ]
     )
 
@@ -376,8 +410,54 @@ def test_sense_cli_lazily_loads_backend_and_delegates(
     assert "Armed (detector epoch 0)." in captured.out
     assert calls == [
         "load_backend",
-        (backend, 18, baseline_path, cli._print_live_sensing_event, False),
+        (
+            backend,
+            18,
+            baseline_path,
+            tapness_path,
+            cli._print_live_sensing_event,
+            False,
+        ),
     ]
+
+
+def test_tapness_fit_cli_is_offline_and_writes_exclusively(
+    monkeypatch, capsys
+) -> None:
+    artifact = {"artifact_type": "synthetic"}
+    calls: list[object] = []
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("offline tapness fitting loaded audio"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "create_tapness_baseline",
+        lambda path: calls.append(("fit", path)) or artifact,
+    )
+    monkeypatch.setattr(
+        cli,
+        "write_tapness_baseline",
+        lambda value, path: calls.append(("write", value, path)) or path,
+    )
+    monkeypatch.setattr(
+        cli, "format_tapness_baseline_summary", lambda value: "tapness summary"
+    )
+
+    assert cli.main(
+        [
+            "--fit-tapness-baseline",
+            "datasets/development-a",
+            "--save-tapness-baseline",
+            "baselines/tapness.json",
+        ]
+    ) == 0
+    assert calls == [
+        ("fit", Path("datasets/development-a")),
+        ("write", artifact, Path("baselines/tapness.json")),
+    ]
+    assert "tapness summary" in capsys.readouterr().out
 
 
 def test_sense_diagnostics_requires_sense(capsys) -> None:
@@ -406,6 +486,8 @@ def test_sense_cli_passes_opt_in_diagnostics(monkeypatch) -> None:
                 "18",
                 "--baseline",
                 "baseline.json",
+                "--tapness-baseline",
+                "tapness.json",
             ]
         )
         == 0
@@ -428,7 +510,10 @@ def test_sense_cli_reports_backend_load_failure_without_running(
     )
 
     exit_code = cli.main(
-        ["--sense", "--device", "18", "--baseline", "baseline.json"]
+        [
+            "--sense", "--device", "18", "--baseline", "baseline.json",
+            "--tapness-baseline", "tapness.json",
+        ]
     )
 
     captured = capsys.readouterr()
@@ -446,7 +531,10 @@ def test_sense_cli_interrupt_returns_130(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli, "run_live_sensing", interrupt)
 
     exit_code = cli.main(
-        ["--sense", "--device", "18", "--baseline", "baseline.json"]
+        [
+            "--sense", "--device", "18", "--baseline", "baseline.json",
+            "--tapness-baseline", "tapness.json",
+        ]
     )
 
     captured = capsys.readouterr()
@@ -467,7 +555,10 @@ def test_sense_cli_reports_realtime_permission_error(
     monkeypatch.setattr(cli, "run_live_sensing", fail)
 
     exit_code = cli.main(
-        ["--sense", "--device", "18", "--baseline", "baseline.json"]
+        [
+            "--sense", "--device", "18", "--baseline", "baseline.json",
+            "--tapness-baseline", "tapness.json",
+        ]
     )
 
     captured = capsys.readouterr()
@@ -527,6 +618,12 @@ def test_live_detection_event_formats_db_margin_and_timing_not_probability() -> 
             "queue_dwell_seconds": 0.003,
             "detector_latency_seconds": 0.1,
         },
+        details={
+            "tapness_inference": {
+                "uncalibrated_model_output": 0.8,
+                "model_margin": 0.2,
+            }
+        },
     )
 
     rendered = cli.format_live_sensing_event(event)
@@ -540,6 +637,8 @@ def test_live_detection_event_formats_db_margin_and_timing_not_probability() -> 
     assert "84714000" not in rendered
     assert "queue dwell=3.00 ms" in rendered
     assert "detector lookahead=100.00 ms" in rendered
+    assert "tapness output=0.800000" in rendered
+    assert "tapness margin=+0.200000" in rendered
     assert "probability" not in rendered.lower()
 
 

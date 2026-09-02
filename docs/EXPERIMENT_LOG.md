@@ -1822,6 +1822,146 @@ resolved or provide a new latency result.
 - Do not refit the classifier or change detector behavior as part of this
   timing-only work.
 
+## Experiment 17 — Phase 3B Development Session A and offline detector-design study
+
+**Date:** September 1, 2026
+
+**Purpose and evidence boundary**
+
+Collect the first dedicated Phase 3 robustness development evidence and use it
+to study candidate-generation and tap/non-tap validation designs without
+changing the production detector or frozen spatial classifier. Session
+`20260901T131308.362205Z-f9e2b1ec` is development evidence only. Its local raw
+waveforms remain under `datasets/`; the existing replay report
+`reports/phase3b0-development-a-replay.json` is waveform-free.
+
+The complete session contains 30 intended positive taps and 14 labeled
+negative segments. Strict loading validated all 44 referenced NPZ artifacts,
+manifest/embedded metadata agreement, contiguous ordering, finite float32
+stereo data, 96,000-frame positive captures, 540,000-frame negative captures,
+and the 48 kHz/two-channel domain.
+
+**Unchanged-detector replay**
+
+- Positive Stage 1 candidate-start recall: 8/30 (26.67%).
+- LEFT: 6/15; RIGHT: 2/15.
+- Light: 0/10; normal: 4/10; firm: 4/10.
+- All eight associated completions were detections; none was rejected.
+- Frozen LEFT/RIGHT classification was 8/8 among those detected positives.
+  This is conditional spatial performance; end-to-end positive success was
+  only 8/30.
+- Negative labeled duration: 140 seconds.
+- Candidate starts/completed false events: 47/47, or 20.143/min.
+- Rates by activity: quiet 0/min, speech 0/min, typing 42/min, trackpad
+  21/min, hand movement 12/min, laptop movement 12/min, and desk/object
+  interaction 54/min.
+
+No Stage 2 tap/non-tap validator existed. The frozen spatial feature,
+threshold, direction, and artifact were unchanged.
+
+**Development-only offline findings**
+
+An association-window oracle used the strongest pooled-multichannel 5 ms
+energy region only to inspect the saved positive waveforms; it is not a live
+algorithm. An ordered counterfactual attribution of the 22 current misses
+associated six primarily with fixed-block phase, two with adaptive-floor
+contamination, thirteen with crest-only failure despite adequate RMS/peak
+evidence, and one with combined RMS/peak/crest failure. This attribution is a
+development diagnostic, not physical ground truth.
+
+Evaluating the unchanged 5 ms gate every 2.5 ms raised positive recall from
+8/30 to 14/30, while negative candidates rose from 47 to 59
+(20.143 to 25.286/min). A smaller candidate-generator alternative retained the
+existing non-overlapping 5 ms timeline and added a development-selected strong
+RMS/peak route: RMS gate ratio at least 6 and peak gate ratio at least 8,
+without globally lowering crest. It produced candidates for 29/30 positives
+and 50 negative events (21.429/min). All 29 positive candidates retained the
+existing raw 9,600-by-2 window geometry and were conditionally classified to
+the intended side by the unchanged frozen spatial baseline. Those 29/29
+results are development-only and were not used as a tapness score.
+
+Failed high-energy blocks often raised the current EWMA floor: 125 such
+positive-interval updates and 122 negative-interval updates increased it by at
+least 10% in one step. Freezing floor updates on RMS-and-peak-passing blocks
+raised overlapping-window positive recall only from 14/30 to 16/30 while
+raising negative candidates from 25.286 to 39.0/min. An exploratory four-times
+upward observation cap recovered no additional positives. Floor-policy changes
+were therefore deferred from the first Stage 1 implementation.
+
+All nine existing descriptive tapness features had overlapping positive and
+negative ranges. On the 29 positive and 50 negative candidates from the
+non-overlapping strong-route variant, a development-selected contrast and
+shape envelope accepted 29/29 positives but also 8 negatives (3.429/min).
+Adding an absolute impact-RMS floor retained 29/29 but still accepted two
+desk/object events (0.857/min), and introduced a session-level amplitude
+dependency. These deterministic rules do not meet the planned untouched
+negative gate and are not validation results.
+
+**Resulting decision**
+
+- Keep Stage 3 frozen LEFT/RIGHT classification and its 200 ms raw feature
+  domain unchanged.
+- For the next implementation, add the single strong RMS/peak recovery route
+  on the existing non-overlapping timeline; do not add overlap or change the
+  adaptive floor in the same iteration.
+- Treat the remaining Stage 2 overlap as justification to study a small,
+  regularized, interpretable tap/non-tap model over a predeclared version of
+  the existing descriptive feature vector rather than accumulating brittle
+  hard gates. Session A is its development source, not its validation set.
+- Freeze the complete Stage 1/Stage 2 design before collecting a new untouched
+  Session B. Session B must separately measure Stage 1 recall, Stage 2 positive
+  survival, Stage 2 false accepts over a five-minute scripted negative run,
+  and conditional frozen spatial correctness.
+
+**Phase 3B.2 implementation and development fit**
+
+The production candidate generator now retains the ordinary RMS/peak/crest
+route unchanged and adds exactly one non-overlapping strong-impact recovery
+route: RMS gate ratio at least 6 and peak gate ratio at least 8. Ordinary-route
+diagnostic labeling takes precedence when both routes pass. No overlapping
+window, floor-policy, center-refinement, refractory, candidate-geometry, or
+spatial-classifier change was made.
+
+Production replay reproduced the reviewed Session A Stage 1 set exactly:
+29/30 intended taps generated associated candidates (LEFT 15/15, RIGHT 14/15;
+light 10/10, normal 9/10, firm 10/10), while 50 negative candidates over 140
+labeled seconds corresponded to 21.429/min.
+
+The versioned `baselines/lenovo-tapness-v1.json` artifact fits deterministic
+L2-regularized binary logistic regression to those 29 TAP and 50 NON_TAP
+candidates. Its fixed nine-feature vector contains no spatial feature, margin,
+threshold, or predicted zone. Positive scale/ratio/duration descriptors use
+fixed numerically safe natural-log transforms; the two bounded fractions stay
+linear. Standardization is stored in the artifact. The L2 value of 0.01 was
+selected from a small Session A development-only comparison of 1.0, 0.1, and
+0.01; it is therefore tuned development evidence.
+
+Five-fold grouped development evaluation kept every event from one recording
+in one fold and fitted means, scales, and model parameters on training folds
+only. The deterministic recall-constrained operating-point rule selected an
+uncalibrated model-output threshold of `0.4495211534633274`. Out-of-fold, it
+accepted 28/29 TAP candidates and falsely accepted 5/50 NON_TAP candidates.
+This is grouped development cross-validation, not external validation.
+
+After refitting the fixed specification on all Session A candidates, replay of
+the frozen artifact accepted 28/29 generated positive candidates, or 28/30
+intended attempts overall. Breakdown by intended condition was LEFT 15/15,
+RIGHT 13/15, light 9/10, normal 9/10, and firm 10/10. Stage 2 falsely accepted
+4/50 negative candidates: two from laptop movement and two from desk/object
+interaction, with none from quiet, typing, speech, trackpad, or hand movement.
+That is 1.714 false accepts/min over the 140 labeled development seconds.
+Frozen spatial classification remained unchanged and was correct for all
+28 Stage 2-accepted positives, giving a Session A development-only end-to-end
+result of 28/30. These final-fit replay numbers are resubstitution evidence and
+must not be substituted for untouched Session B validation.
+
+The compact artifact binds the exact Session A source files with dataset
+SHA-256 `88a003966141d15858a2afec390c42e567439eb5f538b958e7aa60ee7638ab83`,
+records complete candidate membership and negative recording groups, contains
+no waveform arrays, and declares that no external samples were used. The next
+evidence gate remains a new untouched Session B collected only after the full
+Stage 1/Stage 2 pipeline is reviewed and frozen.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.

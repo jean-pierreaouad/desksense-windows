@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 import desksense.realtime as realtime
+import desksense.robustness as robustness
 from desksense.streaming import DetectionResult, DetectorState, StreamingTapDetector
 
 
@@ -23,6 +24,11 @@ BASELINE_PATH = (
     Path(__file__).resolve().parents[1]
     / "baselines"
     / "lenovo-left-right-v1.json"
+)
+TAPNESS_BASELINE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "baselines"
+    / "lenovo-tapness-v1.json"
 )
 
 
@@ -594,6 +600,8 @@ def test_callback_does_no_detector_feature_inference_or_output_work(
         raise AssertionError("main-thread work ran inside the callback")
 
     monkeypatch.setattr(realtime.StreamingTapDetector, "process_chunk", forbidden)
+    monkeypatch.setattr(realtime, "extract_descriptive_tapness_metrics", forbidden)
+    monkeypatch.setattr(realtime, "classify_tapness_metrics", forbidden)
     monkeypatch.setattr(realtime, "extract_two_channel_features", forbidden)
     monkeypatch.setattr(realtime, "classify_peak_ratio_value", forbidden)
     _, bridge = _bridge()
@@ -1042,6 +1050,92 @@ def test_valid_candidate_uses_existing_features_and_frozen_baseline() -> None:
         detection.feature_value_db - detection.threshold_db
     )
     assert summary.detected_event_count == 1
+
+
+def test_stage2_rejection_blocks_spatial_feature_extraction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _candidate_result()
+    spatial = realtime.load_live_baseline_spec(BASELINE_PATH)
+    tapness = realtime.load_tapness_baseline(TAPNESS_BASELINE_PATH)
+
+    monkeypatch.setattr(
+        realtime,
+        "classify_tapness_metrics",
+        lambda *args, **kwargs: {
+            "predicted_label": "NON_TAP",
+            "tap_accepted": False,
+            "uncalibrated_model_output": 0.1,
+            "decision_score": -2.0,
+            "decision_threshold": 0.4,
+            "model_margin": -0.3,
+            "tie_rule": "score >= threshold predicts TAP",
+            "score_is_calibrated_probability": False,
+        },
+    )
+    monkeypatch.setattr(
+        realtime,
+        "extract_two_channel_features",
+        lambda *args, **kwargs: pytest.fail("Stage 3 must not run"),
+    )
+
+    event = realtime.process_detection_result(
+        result, spatial, tapness_baseline=tapness
+    )
+
+    assert event.status == "rejected"
+    assert event.rejection_reasons == ("tapness_non_tap",)
+    assert event.predicted_zone is None
+
+
+def test_stage2_acceptance_invokes_unchanged_spatial_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = _candidate_result()
+    spatial = realtime.load_live_baseline_spec(BASELINE_PATH)
+    tapness = realtime.load_tapness_baseline(TAPNESS_BASELINE_PATH)
+    monkeypatch.setattr(
+        realtime,
+        "classify_tapness_metrics",
+        lambda *args, **kwargs: {
+            "predicted_label": "TAP",
+            "tap_accepted": True,
+            "uncalibrated_model_output": 0.9,
+            "decision_score": 2.0,
+            "decision_threshold": 0.4,
+            "model_margin": 0.5,
+            "tie_rule": "score >= threshold predicts TAP",
+            "score_is_calibrated_probability": False,
+        },
+    )
+
+    event = realtime.process_detection_result(
+        result, spatial, tapness_baseline=tapness
+    )
+
+    assert event.status == "detected"
+    assert event.predicted_zone == "RIGHT"
+    assert event.details["tapness_inference"]["tap_accepted"] is True
+
+
+def test_live_and_offline_stage2_predictions_match_for_same_candidate() -> None:
+    result = _candidate_result()
+    spatial = realtime.load_live_baseline_spec(BASELINE_PATH)
+    tapness = realtime.load_tapness_baseline(TAPNESS_BASELINE_PATH)
+
+    live = realtime.process_detection_result(
+        result, spatial, tapness_baseline=tapness
+    )
+    offline = robustness._completed_event_report(
+        result,
+        None,
+        None,
+        tapness_baseline=tapness,
+        interval_relation="associated",
+    )
+
+    assert live.details["tapness_metrics"] == offline["descriptive_tapness_metrics"]
+    assert live.details["tapness_inference"] == offline["frozen_tapness_prediction"]
 
 
 def test_undefined_primary_feature_is_structured_rejection() -> None:
