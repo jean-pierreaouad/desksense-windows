@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-09-01
+Status captured: 2026-09-02
 
 ## Project purpose
 
@@ -91,8 +91,8 @@ recall and serious mechanical false-positive behavior. No Windows action path
 exists yet.
 
 Checkpoint `93776418aef34558a114df7ab5d16e0cf2512b30` (`Add Phase 3B robustness
-evidence pipeline`) is the latest pushed production state. Phase 3B.0 added a
-local guided robustness dataset and deterministic offline replay. Development
+evidence pipeline`) added the local guided robustness dataset and deterministic
+offline replay. Development
 Session A (`20260901T131308.362205Z-f9e2b1ec`) contains 30 intended taps and 14
 labeled negative segments. The old detector produced candidates for only 8/30
 intended taps and 47 completed false events over 140 labeled negative seconds
@@ -114,9 +114,25 @@ candidates with L2 0.01 and an uncalibrated-score threshold of
 5/50 NON_TAP candidates. Final all-development replay accepted 28/30 intended
 taps, falsely accepted 4/50 negative candidates (1.714/min), and retained
 28/28 conditional spatial correctness. These are tuned development and
-resubstitution results, not validation. Phase 3B.2 is implementation-complete,
-validated by a 462-test suite, and ready to checkpoint before untouched Session
-B is collected.
+resubstitution results, not validation. Phase 3B.2 was checkpointed in
+`dc7b8eb3b387cdeda4b5b45ff0687dba6a761cc2` (`Implement Phase 3B tapness
+pipeline`) before untouched Session B collection.
+
+The Phase 3B external-validation harness is implemented and covered by the
+499-test suite. It defines a prediction-independent 30-tap positive protocol
+and an exact 300-second, seven-activity negative protocol, binds collection to
+the frozen Stage 1/Stage 2/Stage 3 identities, refuses tapness fitting from
+sessions marked `external_validation`, rejects incomplete external collections
+for evaluation, and reports each pipeline stage separately. Session B has not
+been collected or evaluated; this is infrastructure readiness, not a
+robustness result.
+
+The frozen positive protocol uses the same right index finger and fleshy
+fingertip pad for both established lower/front LEFT and RIGHT locations, with
+one intended tap per cue. The negative denominator is 300 labeled seconds
+across seven separately recorded activity segments; each segment has its own
+excluded quiet warm-up and completion tail, so it is not one continuous
+five-minute live run.
 
 Stage 3 remains `baselines/lenovo-left-right-v1.json` without refitting or
 modification: `peak_ratio_db_ch2_minus_ch1`, threshold
@@ -1104,14 +1120,16 @@ two active, meaningfully different channels is the selected endpoint for the
 next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
-The Phase 3B.2 implementation is ready to checkpoint. After it is frozen, a
-new untouched Session B must evaluate Stage 1 recall, Stage 2 positive
+The frozen Phase 3B.2 pipeline and external-validation harness are ready for a
+new untouched Session B, which must evaluate Stage 1 recall, Stage 2 positive
 survival, Stage 2 false accepts, and conditional frozen Stage 3 correctness.
 The approximate engineering gates are Stage 1 >= 27/30 intended taps, Stage 2
->= 27/30, preferably at least 4/5 in every side-by-strength cell, and no more
-than one Stage 2 false accept during a five-minute scripted negative protocol.
-The detector, tapness artifact, and spatial artifact must not be tuned after
-viewing Session B.
+>= 27/30, end-to-end correct intended-zone outputs >= 27/30, and no more than
+one Stage 2 false accept over the exact 300 labeled seconds. Preferably at
+least 4/5 Stage 2 taps survive in every side-by-strength cell; that cell target
+is reported separately rather than treated as a hard overall gate. The
+detector, tapness artifact, and spatial artifact must not be tuned after viewing
+Session B.
 
 If Session B motivates any change, it becomes development evidence and a new
 untouched Session C is required before a subsequent external robustness claim.
@@ -1150,8 +1168,8 @@ project with attribution only where DeskSense evidence supports them.
 | 3A.3 — observability and diagnostic work | Complete enough to expose missed-tap and false-positive failure modes |
 | 3B.0 — robustness evidence and replay pipeline | Complete and checkpointed in `93776418` |
 | 3B.1 — Session A offline design study | Complete; development evidence only |
-| 3B.2 — high-recall Stage 1 and frozen Stage 2 tapness model | Implementation/recovery complete and ready to checkpoint; 462 tests passing |
-| 3B external validation | Next; untouched Session B has not been collected |
+| 3B.2 — high-recall Stage 1 and frozen Stage 2 tapness model | Complete and checkpointed in `dc7b8eb3` |
+| 3B external validation | Collection/evaluation harness implemented; untouched Session B not collected or evaluated |
 | 4 — Windows action mapping | Deferred until robustness evidence passes |
 | 5 — cross-laptop adaptation and testing | Deferred |
 | 6 — polish, demo, and release work | Deferred |
@@ -1206,7 +1224,10 @@ broader claims require additional users, sessions, desks, devices, and zones.
   arrays.
 - `baselines/lenovo-tapness-v1.json` contains derived model, feature-schema,
   training-membership, fingerprint, Stage 1 compatibility, and development
-  evidence metadata only. It contains no raw waveform arrays and is intended
-  to be checkpointed before untouched Session B collection.
+  evidence metadata only. It contains no raw waveform arrays and was
+  checkpointed before untouched Session B collection.
+- Future Session B waveforms will remain local under the ignored `datasets/`
+  root. Its external JSON report will remain under ignored `reports/`, contain
+  no waveform arrays, and will not alter either frozen baseline.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

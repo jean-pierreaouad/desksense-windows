@@ -52,6 +52,13 @@ from desksense.robustness import (
     write_robustness_report,
 )
 from desksense.robustness_dataset import RobustnessDatasetError
+from desksense.robustness_external import (
+    ExternalRobustnessError,
+    evaluate_robustness_external,
+    format_external_robustness_summary,
+    run_guided_external_robustness_collection,
+    write_external_robustness_report,
+)
 from desksense.tapness import (
     TapnessBaselineError,
     create_tapness_baseline,
@@ -117,12 +124,29 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     capture_mode.add_argument(
+        "--collect-robustness-external",
+        action="store_true",
+        help=(
+            "collect the fixed untouched Phase 3B Session B protocol while "
+            "binding it to explicitly supplied frozen Stage 2/Stage 3 artifacts"
+        ),
+    )
+    capture_mode.add_argument(
         "--replay-robustness-dataset",
         type=Path,
         metavar="SESSION",
         help=(
             "validate and replay one Phase 3 robustness session through the "
             "current versioned Stage 1 detector entirely offline"
+        ),
+    )
+    capture_mode.add_argument(
+        "--evaluate-robustness-external",
+        type=Path,
+        metavar="SESSION",
+        help=(
+            "evaluate one complete external_validation Phase 3B session through "
+            "explicitly supplied frozen Stage 1/2/3 artifacts without fitting"
         ),
     )
     capture_mode.add_argument(
@@ -195,7 +219,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "local dataset directory used by --collect-dataset or "
-            "--collect-robustness-dataset (default: datasets)"
+            "a robustness collection mode (default: datasets)"
         ),
     )
     parser.add_argument(
@@ -224,7 +248,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "required with --evaluate-frozen-baseline and --sense, and optional "
-            "with --replay-robustness-dataset; baseline is never modified"
+            "with --replay-robustness-dataset; also required by Phase 3B "
+            "external collection/evaluation; baseline is never modified"
         ),
     )
     parser.add_argument(
@@ -233,7 +258,8 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "frozen TAP/NON_TAP artifact required with --sense and optional "
-            "with --replay-robustness-dataset for Stage 2 evaluation"
+            "with --replay-robustness-dataset; required by Phase 3B external "
+            "collection/evaluation"
         ),
     )
     parser.add_argument(
@@ -280,20 +306,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.tapness_baseline is not None
         and not args.sense
         and args.replay_robustness_dataset is None
+        and args.evaluate_robustness_external is None
+        and not args.collect_robustness_external
     ):
         parser.error(
             "--tapness-baseline requires --sense or "
-            "--replay-robustness-dataset SESSION"
+            "a robustness replay/external mode"
         )
     if (
         args.baseline is not None
         and args.evaluate_frozen_baseline is None
         and not args.sense
         and args.replay_robustness_dataset is None
+        and args.evaluate_robustness_external is None
+        and not args.collect_robustness_external
     ):
         parser.error(
             "--baseline requires --evaluate-frozen-baseline SESSION, "
-            "--replay-robustness-dataset SESSION, or --sense"
+            "a robustness replay/external mode, or --sense"
         )
 
     if args.freeze_baseline is not None:
@@ -357,6 +387,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.baseline is None:
             parser.error("--evaluate-frozen-baseline requires --baseline PATH")
         return _run_external_evaluation_cli(args)
+
+    if args.evaluate_robustness_external is not None:
+        if args.device is not None:
+            parser.error(
+                "--device cannot be combined with --evaluate-robustness-external"
+            )
+        if args.dataset_root is not None or args.samples_per_zone is not None:
+            parser.error(
+                "collection flags cannot be combined with "
+                "--evaluate-robustness-external"
+            )
+        if args.interaction_context is not None:
+            parser.error(
+                "--interaction-context cannot be combined with "
+                "--evaluate-robustness-external"
+            )
+        if args.tapness_baseline is None:
+            parser.error(
+                "--evaluate-robustness-external requires --tapness-baseline PATH"
+            )
+        if args.baseline is None:
+            parser.error(
+                "--evaluate-robustness-external requires --baseline PATH"
+            )
+        return _run_external_robustness_evaluation_cli(args)
 
     if args.analyze_dataset is not None:
         if args.device is not None:
@@ -448,6 +503,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.dataset_root is None:
             args.dataset_root = Path("datasets")
         return _run_robustness_collection_cli(args)
+    if args.collect_robustness_external:
+        if args.device is None:
+            parser.error("--collect-robustness-external requires --device INDEX")
+        if args.tapness_baseline is None:
+            parser.error(
+                "--collect-robustness-external requires --tapness-baseline PATH"
+            )
+        if args.baseline is None:
+            parser.error("--collect-robustness-external requires --baseline PATH")
+        if args.samples_per_zone is not None:
+            parser.error(
+                "--samples-per-zone cannot be combined with "
+                "--collect-robustness-external"
+            )
+        if args.save_report is not None:
+            parser.error(
+                "--save-report cannot be combined with "
+                "--collect-robustness-external"
+            )
+        if args.dataset_root is None:
+            args.dataset_root = Path("datasets")
+        return _run_external_robustness_collection_cli(args)
     if args.samples_per_zone is not None or args.dataset_root is not None:
         parser.error(
             "--samples-per-zone requires --collect-dataset; --dataset-root "
@@ -713,6 +790,48 @@ def _run_robustness_collection_cli(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_external_robustness_collection_cli(args: argparse.Namespace) -> int:
+    """Collect the fixed untouched Session B protocol with lazy audio loading."""
+
+    try:
+        audio_backend = _load_audio_backend()
+    except Exception as error:
+        details = describe_audio_error(error)
+        print(
+            f"Could not load the audio backend: {details['message']}",
+            file=sys.stderr,
+        )
+        if details["category"] == "permission_denied":
+            _print_microphone_permission_guidance()
+        return 1
+    try:
+        run_guided_external_robustness_collection(
+            audio_backend,
+            device_index=args.device,
+            tapness_baseline_path=args.tapness_baseline,
+            spatial_baseline_path=args.baseline,
+            dataset_root=args.dataset_root,
+        )
+    except KeyboardInterrupt:
+        print(
+            "\nExternal robustness collection interrupted; already saved "
+            "evidence remains explicitly incomplete.",
+            file=sys.stderr,
+        )
+        return 130
+    except EOFError:
+        print(
+            "\nExternal robustness collection input closed; already saved "
+            "evidence remains explicitly incomplete.",
+            file=sys.stderr,
+        )
+        return 1
+    except (ExternalRobustnessError, RobustnessError, OSError, TypeError, ValueError) as error:
+        print(f"External robustness collection failed: {error}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _run_robustness_replay_cli(args: argparse.Namespace) -> int:
     """Replay robustness evidence without loading or initializing audio."""
 
@@ -745,6 +864,42 @@ def _run_robustness_replay_cli(args: argparse.Namespace) -> int:
         print(f"Could not save JSON robustness report: {error}", file=sys.stderr)
         return 1
     print(f"\nJSON robustness replay report saved to: {saved_path}")
+    return 0
+
+
+def _run_external_robustness_evaluation_cli(args: argparse.Namespace) -> int:
+    """Evaluate untouched Session B entirely offline and without fitting."""
+
+    try:
+        report = evaluate_robustness_external(
+            args.evaluate_robustness_external,
+            tapness_baseline_path=args.tapness_baseline,
+            spatial_baseline_path=args.baseline,
+        )
+    except KeyboardInterrupt:
+        print("\nExternal robustness evaluation interrupted.", file=sys.stderr)
+        return 130
+    except (
+        ExternalRobustnessError,
+        RobustnessError,
+        RobustnessDatasetError,
+        OSError,
+        TypeError,
+        ValueError,
+    ) as error:
+        print(f"External robustness evaluation failed: {error}", file=sys.stderr)
+        return 1
+    print(format_external_robustness_summary(report))
+    requested_path = _AUTO_REPORT if args.save_report is None else args.save_report
+    try:
+        report_path = _external_robustness_report_path(
+            requested_path, report["generated_at_utc"]
+        )
+        saved = write_external_robustness_report(report, report_path)
+    except (ExternalRobustnessError, OSError, TypeError, ValueError) as error:
+        print(f"Could not save external robustness report: {error}", file=sys.stderr)
+        return 1
+    print(f"\nJSON external robustness report saved to: {saved}")
     return 0
 
 
@@ -1217,6 +1372,19 @@ def _robustness_report_path(requested: object, generated_at_utc: str) -> Path:
         return Path("reports") / f"desksense-robustness-replay-{timestamp}.json"
     if not isinstance(requested, Path):
         raise TypeError("Robustness report path must be a filesystem path.")
+    return requested
+
+
+def _external_robustness_report_path(
+    requested: object, generated_at_utc: str
+) -> Path:
+    if requested is _AUTO_REPORT:
+        timestamp = datetime.fromisoformat(generated_at_utc).strftime(
+            "%Y%m%dT%H%M%S.%fZ"
+        )
+        return Path("reports") / f"desksense-phase3b-external-{timestamp}.json"
+    if not isinstance(requested, Path):
+        raise TypeError("External robustness report path must be a filesystem path.")
     return requested
 
 

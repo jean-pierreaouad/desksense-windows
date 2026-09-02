@@ -436,6 +436,11 @@ def create_tapness_baseline(
     from desksense.robustness import replay_robustness_dataset
 
     dataset = load_robustness_dataset(Path(session_path))
+    if dataset.session.get("evidence_role") == "external_validation":
+        raise TapnessBaselineError(
+            "Refusing to fit a tapness baseline from an external_validation "
+            "robustness session. External evidence must never enter fitting."
+        )
     report = replay_robustness_dataset(Path(session_path))
     examples = _training_examples_from_replay(report)
     positive_count = sum(item["target_label"] == TAPNESS_POSITIVE_LABEL for item in examples)

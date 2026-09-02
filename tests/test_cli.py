@@ -1297,3 +1297,147 @@ def test_external_missing_baseline_fails_clearly_without_audio_backend(
     assert exit_code == 1
     assert "External evaluation failed" in captured.err
     assert "does not exist" in captured.err
+
+
+def test_external_robustness_evaluation_requires_both_frozen_artifacts() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--evaluate-robustness-external", "session-b"])
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "--evaluate-robustness-external",
+                "session-b",
+                "--tapness-baseline",
+                "tapness.json",
+            ]
+        )
+
+
+def test_external_robustness_collection_requires_device_and_artifacts() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(["--collect-robustness-external"])
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "--collect-robustness-external",
+                "--device",
+                "18",
+                "--tapness-baseline",
+                "tapness.json",
+            ]
+        )
+
+
+def test_external_robustness_evaluation_is_offline_and_delegates(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    session = tmp_path / "session-b"
+    tapness = tmp_path / "tapness.json"
+    spatial = tmp_path / "spatial.json"
+    destination = tmp_path / "external.json"
+    report = {
+        "generated_at_utc": "2026-09-02T12:00:00+00:00",
+        "report_type": "phase3b_frozen_pipeline_external_validation",
+    }
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "_load_audio_backend",
+        lambda: pytest.fail("offline external evaluation loaded sounddevice"),
+    )
+    monkeypatch.setattr(
+        cli,
+        "evaluate_robustness_external",
+        lambda received, *, tapness_baseline_path, spatial_baseline_path: (
+            calls.append((received, tapness_baseline_path, spatial_baseline_path))
+            or report
+        ),
+    )
+    monkeypatch.setattr(
+        cli, "format_external_robustness_summary", lambda _report: "external robustness summary"
+    )
+    monkeypatch.setattr(
+        cli,
+        "write_external_robustness_report",
+        lambda received, path: calls.append((received, path)) or path.resolve(),
+    )
+    exit_code = cli.main(
+        [
+            "--evaluate-robustness-external",
+            str(session),
+            "--tapness-baseline",
+            str(tapness),
+            "--baseline",
+            str(spatial),
+            "--save-report",
+            str(destination),
+        ]
+    )
+    assert exit_code == 0
+    assert "external robustness summary" in capsys.readouterr().out
+    assert calls == [
+        (session, tapness, spatial),
+        (report, destination),
+    ]
+
+
+def test_external_robustness_collection_delegates_after_lazy_backend_load(
+    monkeypatch, tmp_path
+) -> None:
+    backend = object()
+    calls = []
+    monkeypatch.setattr(cli, "_load_audio_backend", lambda: backend)
+    monkeypatch.setattr(
+        cli,
+        "run_guided_external_robustness_collection",
+        lambda received, **kwargs: calls.append((received, kwargs)),
+    )
+    exit_code = cli.main(
+        [
+            "--collect-robustness-external",
+            "--device",
+            "18",
+            "--tapness-baseline",
+            "tapness.json",
+            "--baseline",
+            "spatial.json",
+            "--dataset-root",
+            str(tmp_path),
+        ]
+    )
+    assert exit_code == 0
+    assert calls == [
+        (
+            backend,
+            {
+                "device_index": 18,
+                "tapness_baseline_path": Path("tapness.json"),
+                "spatial_baseline_path": Path("spatial.json"),
+                "dataset_root": tmp_path,
+            },
+        )
+    ]
+
+
+def test_external_modes_are_mutually_exclusive_and_reject_irrelevant_flags() -> None:
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "--collect-robustness-external",
+                "--evaluate-robustness-external",
+                "session-b",
+            ]
+        )
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "--evaluate-robustness-external",
+                "session-b",
+                "--tapness-baseline",
+                "tapness.json",
+                "--baseline",
+                "spatial.json",
+                "--device",
+                "18",
+            ]
+        )

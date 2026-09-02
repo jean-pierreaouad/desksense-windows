@@ -178,7 +178,7 @@ def create_robustness_dataset_session(
         **dict(metadata),
         "schema_version": ROBUSTNESS_SCHEMA_VERSION,
         "dataset_kind": ROBUSTNESS_DATASET_KIND,
-        "project_phase": "3B.0",
+        "project_phase": str(metadata.get("project_phase", "3B.0")),
         "session_id": resolved_id,
         "created_at_utc": created_at_utc or _utc_now(),
     }
