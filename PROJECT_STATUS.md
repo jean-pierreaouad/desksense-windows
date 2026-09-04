@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-09-02
+Status captured: 2026-09-04
 
 ## Project purpose
 
@@ -43,9 +43,10 @@ Phase 3 robustness work now separates high-recall candidate generation,
 TAP/NON_TAP validation, and the unchanged frozen LEFT/RIGHT classifier.
 Development Session A was used to select the Phase 3B.2 Stage 1 recovery route,
 Stage 2 feature/model design, L2 value, and operating threshold. Every Phase
-3B.2 result from that session is therefore development evidence, not untouched
-validation. The resulting pipeline must not be described as robust or
-production-ready until it passes a new frozen, untouched Session B.
+3B.2 result from that session is therefore development evidence. The complete
+frozen pipeline was then evaluated on untouched Session B. It passed the
+predeclared intended-tap gates but failed the negative false-accept gate, so it
+must not be described as robust or production-ready.
 
 ## Development environment
 
@@ -118,14 +119,12 @@ resubstitution results, not validation. Phase 3B.2 was checkpointed in
 `dc7b8eb3b387cdeda4b5b45ff0687dba6a761cc2` (`Implement Phase 3B tapness
 pipeline`) before untouched Session B collection.
 
-The Phase 3B external-validation harness is implemented and covered by the
-499-test suite. It defines a prediction-independent 30-tap positive protocol
-and an exact 300-second, seven-activity negative protocol, binds collection to
-the frozen Stage 1/Stage 2/Stage 3 identities, refuses tapness fitting from
-sessions marked `external_validation`, rejects incomplete external collections
-for evaluation, and reports each pipeline stage separately. Session B has not
-been collected or evaluated; this is infrastructure readiness, not a
-robustness result.
+The Phase 3B external-validation harness defines a prediction-independent
+30-tap positive protocol and an exact 300-second, seven-activity negative
+protocol, binds collection to the frozen Stage 1/Stage 2/Stage 3 identities,
+refuses tapness fitting from sessions marked `external_validation`, rejects
+incomplete external collections for evaluation, and reports each pipeline
+stage separately.
 
 The frozen positive protocol uses the same right index finger and fleshy
 fingertip pad for both established lower/front LEFT and RIGHT locations, with
@@ -133,6 +132,23 @@ one intended tap per cue. The negative denominator is 300 labeled seconds
 across seven separately recorded activity segments; each segment has its own
 excluded quiet warm-up and completion tail, so it is not one continuous
 five-minute live run.
+
+Official Session B (`20260904T171453.458221Z-4ecb16ad`) was collected and
+evaluated as untouched external evidence for the frozen Phase 3B.2 pipeline.
+Stage 1 generated candidates for 30/30 intended taps and Stage 2 accepted all
+30/30 as TAP. The unchanged Stage 3 spatial classifier produced 28/30 correct
+intended-zone outputs: all 15 LEFT taps were classified LEFT, while 13/15 RIGHT
+taps were classified RIGHT and two were classified LEFT. Over the exact 300
+labeled negative seconds, Stage 1 generated 74 candidates (14.8/min) and Stage
+2 falsely accepted eight (1.6/min). The predeclared overall engineering gate
+therefore **failed solely because the required maximum was one false accept**;
+the Stage 1, Stage 2, and end-to-end positive gates all passed.
+
+Session B remains the official first external validation of the complete
+Phase 3B.2 pipeline, including its unchanged FAIL result. If its waveforms,
+events, or results inform any later feature, threshold, model, calibration, or
+Stage 1/2/3 change, it becomes development evidence for that later pipeline and
+a new untouched Session C is required before another external-validation claim.
 
 Stage 3 remains `baselines/lenovo-left-right-v1.json` without refitting or
 modification: `peak_ratio_db_ch2_minus_ch1`, threshold
@@ -802,8 +818,8 @@ than a growing set of brittle hard gates.
 
 ### Phase 3B.2 — versioned Stage 1 and frozen tapness baseline
 
-Status: **implementation and recovery complete; ready to checkpoint; untouched
-Session B not yet collected**
+Status: **complete and checkpointed; frozen pipeline externally evaluated on
+Session B**
 
 Implemented:
 
@@ -833,6 +849,31 @@ Frozen Stage 2 artifact:
   `88a003966141d15858a2afec390c42e567439eb5f538b958e7aa60ee7638ab83`.
 - No LEFT/RIGHT feature, spatial threshold, spatial margin, predicted zone, or
   waveform array is stored or used by Stage 2.
+
+### Phase 3B Session B — external validation
+
+Status: **complete; official overall FAIL due to negative false accepts**
+
+Untouched Session B, `20260904T171453.458221Z-4ecb16ad`, used the same right
+index finger and fleshy fingertip pad for all 30 guided LEFT/RIGHT taps. Stage 1
+generated 30/30 associated candidates and frozen Stage 2 accepted 30/30 as TAP.
+Frozen Stage 3 classified 28/30 to the intended zone (LEFT 15/15; RIGHT 13/15).
+
+Across exactly 300 labeled negative seconds in seven separately recorded
+activity segments, Stage 1 produced 74 candidates and Stage 2 falsely accepted
+eight: typing 1, trackpad 1, laptop movement 2, and desk/object interaction 4;
+quiet, speech, and hand movement produced no Stage 2 false accepts. The four
+predeclared hard gates required Stage 1 >=27/30, Stage 2 >=27/30, end-to-end
+correct intended-zone outputs >=27/30, and no more than one Stage 2 false accept.
+The first three passed; the negative gate failed, making the official overall
+result a FAIL. The per-cell preference also passed at 5/5 Stage 2 acceptance in
+every side-by-strength cell, but it was not a hard gate.
+
+This result applies only to the tested user, Lenovo laptop, wooden desk, and
+session. It demonstrates high intended-tap survival in this session, not general
+robustness. Mechanical false-positive rejection, especially for desk/object and
+laptop interactions, is the next development problem. Windows actions remain
+deferred.
 
 Development-only results:
 
@@ -1110,29 +1151,27 @@ larger dataset is available.
 
 The primary engineering question is now:
 
-> Can the frozen Phase 3B.2 Stage 1 + Stage 2 pipeline preserve high
-> intended-tap recall while suppressing realistic mechanical non-tap activity
-> on a completely untouched cross-session evaluation, before any Windows
-> actions are enabled?
+> How can DeskSense reject realistic mechanical non-tap impacts—especially
+> desk/object and laptop interactions—while preserving the now-observed high
+> intended-tap recall and Stage 2 survival, before freezing a revised pipeline
+> for untouched Session C?
 
 Broad Windows endpoint exploration is paused. WDM-KS device 18 at 48 kHz with
 two active, meaningfully different channels is the selected endpoint for the
 next Lenovo experiments. DirectSound and WDM-KS devices 19 and 20 should not be
 tested unless later evidence provides a reason.
 
-The frozen Phase 3B.2 pipeline and external-validation harness are ready for a
-new untouched Session B, which must evaluate Stage 1 recall, Stage 2 positive
-survival, Stage 2 false accepts, and conditional frozen Stage 3 correctness.
-The approximate engineering gates are Stage 1 >= 27/30 intended taps, Stage 2
->= 27/30, end-to-end correct intended-zone outputs >= 27/30, and no more than
-one Stage 2 false accept over the exact 300 labeled seconds. Preferably at
-least 4/5 Stage 2 taps survive in every side-by-strength cell; that cell target
-is reported separately rather than treated as a hard overall gate. The
-detector, tapness artifact, and spatial artifact must not be tuned after viewing
-Session B.
+The frozen Phase 3B.2 pipeline has now been evaluated on untouched Session B.
+It passed Stage 1 recall (30/30), Stage 2 positive survival (30/30), and
+end-to-end correct intended-zone output (28/30), but eight Stage 2 false accepts
+over the exact 300 labeled negative seconds exceeded the predeclared maximum of
+one. The official overall result is therefore FAIL; the gate is not revised
+after seeing the data.
 
-If Session B motivates any change, it becomes development evidence and a new
-untouched Session C is required before a subsequent external robustness claim.
+Phase 3B.3 is a read-only failure analysis using Sessions A and B as development
+evidence. If Session B informs any change, a new untouched Session C is required
+before a subsequent external robustness claim. The historical Session B result
+and its official FAIL remain preserved rather than being replaced.
 The historical Phase 2C same-hand result remains the official 39/40 spatial
 external result and is not replaced by Phase 3 development replay.
 
@@ -1168,8 +1207,10 @@ project with attribution only where DeskSense evidence supports them.
 | 3A.3 — observability and diagnostic work | Complete enough to expose missed-tap and false-positive failure modes |
 | 3B.0 — robustness evidence and replay pipeline | Complete and checkpointed in `93776418` |
 | 3B.1 — Session A offline design study | Complete; development evidence only |
-| 3B.2 — high-recall Stage 1 and frozen Stage 2 tapness model | Complete and checkpointed in `dc7b8eb3` |
-| 3B external validation | Collection/evaluation harness implemented; untouched Session B not collected or evaluated |
+| 3B.2 — high-recall Stage 1 and frozen Stage 2 tapness model | Complete, checkpointed in `dc7b8eb3`, and externally evaluated |
+| 3B Session B external validation | Complete; official overall FAIL because eight Stage 2 false accepts exceeded the maximum of one |
+| 3B.3 — Sessions A+B failure analysis | Next; read-only analysis before any pipeline change |
+| Session C external validation | Required after any pipeline change; not yet collected |
 | 4 — Windows action mapping | Deferred until robustness evidence passes |
 | 5 — cross-laptop adaptation and testing | Deferred |
 | 6 — polish, demo, and release work | Deferred |
@@ -1226,8 +1267,9 @@ broader claims require additional users, sessions, desks, devices, and zones.
   training-membership, fingerprint, Stage 1 compatibility, and development
   evidence metadata only. It contains no raw waveform arrays and was
   checkpointed before untouched Session B collection.
-- Future Session B waveforms will remain local under the ignored `datasets/`
-  root. Its external JSON report will remain under ignored `reports/`, contain
-  no waveform arrays, and will not alter either frozen baseline.
+- Phase 3B Session B remains local under the ignored `datasets/` root. Its
+  waveform-free external report remains under ignored `reports/`. Evaluation
+  verified the dataset fingerprint and both frozen-artifact hashes were
+  identical before and after replay; neither baseline was altered.
 - The detailed experiment chronology and evidence-retention notes are in
   [`docs/EXPERIMENT_LOG.md`](docs/EXPERIMENT_LOG.md).

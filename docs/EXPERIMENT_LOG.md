@@ -1962,6 +1962,86 @@ no waveform arrays, and declares that no external samples were used. The next
 evidence gate remains a new untouched Session B collected only after the full
 Stage 1/Stage 2 pipeline is reviewed and frozen.
 
+## Experiment 18 — frozen Phase 3B.2 Session B external validation
+
+**Date:** September 4, 2026
+
+**Purpose and evidence boundary**
+
+Evaluate the complete frozen Phase 3B.2 pipeline on a new untouched session,
+without fitting, refitting, calibration, feature selection, threshold changes,
+or Stage 1 policy changes. Session `20260904T171453.458221Z-4ecb16ad` was
+collected and evaluated with evidence role `external_validation`; its official
+local waveform-free report is `reports/phase3b-session-b-external.json`.
+
+Collection used Microphone Array 1 (Intel Smart Sound Technology (Intel SST)
+Microphone), Windows WDM-KS device index 18, at 48 kHz, two channels, and
+float32. The same right index finger and fleshy fingertip pad were used for
+exactly one intended tap per cue at both established lower/front zones,
+approximately 7–10 cm outside the corresponding laptop edge and toward the
+user/touchpad side. The Lenovo laptop and wooden-desk setup were unchanged, and
+the user reported no known protocol irregularities.
+
+The complete dataset contains 30 positive records and seven negative activity
+records. The negative denominator is exactly 300 labeled seconds across seven
+separately recorded and replayed segments, each with its own excluded warm-up
+and completion tail. Dataset fingerprint
+`6b6b7cff6ff4f597d0c4c9bc8ccea3544cda99e4d25bf9be1cc732ee6b9ee5ac`
+was identical before and after replay. The frozen Stage 2 artifact SHA-256 was
+`2c980a0d3ae05bf8f74d9bf3b9ba4a2f35cb9e679e9273f6f55eaf4e6778dbde`;
+the frozen Stage 3 artifact SHA-256 was
+`42ca902b06cc840b19df409d2869bad21db3f0d6b78c3850510938b31e13b588`.
+Both artifact hashes were identical before and after replay.
+
+**Official results**
+
+- Stage 1 generated an associated candidate for 30/30 intended taps: LEFT
+  15/15, RIGHT 15/15, and light/normal/firm 10/10 each. Every side-by-strength
+  cell was 5/5.
+- Frozen Stage 2 accepted 30/30 intended taps as TAP, with the same complete
+  side, strength, and cell counts.
+- Frozen Stage 3 classified 28/30 accepted intended taps correctly (93.33%).
+  The confusion matrix was actual LEFT: 15 LEFT, 0 RIGHT; actual RIGHT: 2 LEFT,
+  13 RIGHT. Both errors were actual RIGHT taps predicted LEFT.
+- End-to-end correct intended-zone output was 28/30 (93.33%).
+- Stage 1 generated 74 negative candidates over 300 labeled seconds, or
+  14.8/min. Stage 2 falsely accepted eight, or 1.6/min.
+- Negative breakdown was: quiet 30 s, 0 candidates/0 false accepts; typing
+  45 s, 12/1; speech 45 s, 0/0; trackpad 45 s, 12/1; hand movement 45 s,
+  20/0; laptop movement 45 s, 10/2; desk/object interaction 45 s, 20/4.
+
+**Predeclared gate result**
+
+The hard gates were Stage 1 candidate recall at least 27/30, Stage 2 intended
+TAP acceptance at least 27/30, end-to-end correct intended-zone output at least
+27/30, and at most one Stage 2 false accept over the exact 300 labeled negative
+seconds. The first three passed; the negative gate failed with eight false
+accepts. The official overall engineering gate is therefore **FAIL**, caused by
+negative false acceptance rather than intended-tap recall. The preference for
+at least 4/5 Stage 2 acceptance in every side-by-strength cell was met at 5/5,
+but it was not a hard gate and does not alter the overall result.
+
+**Interpretation and next decision**
+
+The Stage 1 redesign addressed the earlier intended-tap recall failure in this
+untouched session, and Stage 2 preserved all intended taps. The remaining
+official robustness failure is mechanical non-tap rejection, concentrated in
+desk/object and laptop interaction, with one false accept each from typing and
+trackpad. Quiet and speech produced no Stage 1 candidates. Hand movement
+produced 20 Stage 1 candidates, all rejected by Stage 2, showing useful
+downstream discrimination. These findings apply only to this user, setup, and
+session and do not establish general reliability. Windows actions remain
+deferred.
+
+Session B is permanently preserved as the first external validation of the
+frozen Phase 3B.2 pipeline, including this official FAIL. From this point, if
+its waveforms, events, or results are used to select, modify, tune, or train any
+Stage 1, Stage 2, Stage 3, feature, threshold, model, or calibration, it becomes
+development evidence for that later pipeline. The historical result is not
+erased or replaced, and any modified pipeline requires a new untouched Session
+C before another external-validation claim. The next step is read-only Phase
+3B.3 failure analysis using Sessions A and B as development evidence.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
