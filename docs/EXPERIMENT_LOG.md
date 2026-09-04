@@ -2042,6 +2042,73 @@ erased or replaced, and any modified pipeline requires a new untouched Session
 C before another external-validation claim. The next step is read-only Phase
 3B.3 failure analysis using Sessions A and B as development evidence.
 
+## Experiment 19 — Phase 3B.3 false-positive discrimination study
+
+**Date:** September 4, 2026
+
+**Purpose and evidence boundary**
+
+Use Sessions A and B as development evidence to determine what signal
+information is missing from frozen Stage 2 after Session B's official
+false-accept failure. The historical Session B external result remains
+unchanged. No detector, feature, threshold, model, frozen artifact, or dataset
+was modified, and no production artifact was fitted. Any later changed pipeline
+requires untouched Session C.
+
+Strict loading and exact frozen Stage 1 replay reproduced 29 positive and 50
+negative candidates from Session A, and 30 positive and 74 negative candidates
+from Session B. Session A fingerprint
+`88a003966141d15858a2afec390c42e567439eb5f538b958e7aa60ee7638ab83` and
+Session B fingerprint
+`6b6b7cff6ff4f597d0c4c9bc8ccea3544cda99e4d25bf9be1cc732ee6b9ee5ac`
+were identical before and after analysis. The eight reproduced Session B false
+accept identities matched the official report.
+
+**Development findings**
+
+- Only two of the eight B false accepts were inside the TAP min/max interval on
+  all nine existing feature dimensions, and only one was inside every TAP
+  5–95% interval. The frozen linear boundary is therefore part of the problem,
+  although genuine tap/non-tap overlap also remains.
+- The clearest missing candidate-only information was broadband spectral
+  shape. A fixed 50 ms post-center pooled-power spectrum gave spectral-bandwidth
+  AUC 0.998, and 0–100 ms zero-crossing rate gave AUC 0.994. TAP medians were
+  nearly zone-independent. Multi-impact counts, simple decay shape, and
+  channel-asymmetry/coherence descriptors overlapped much more strongly.
+- A two-feature L2-logistic development candidate using bandwidth and
+  zero-crossing rate retained 30/30 B taps with 2/74 B negative false accepts
+  when trained on A; in the reverse direction it retained all 29 generated A
+  taps with 1/50 false accept. Nested record-grouped pooled development retained
+  all 59 generated taps and falsely accepted 3/124 negative candidates. These
+  are development estimates after feature screening, not validation.
+- A hard bandwidth rule and a depth-2 tree were unstable in the B-to-A
+  direction. Adding the highly correlated flatness and high/low features gave
+  little benefit. Nonlinear complexity is not justified by this evidence.
+- Extending context to 100–180 ms after onset and adding late-energy fraction
+  reduced the corresponding cross-session false accepts to 1 and 0, but nested
+  pooled positive survival fell from 59/60 intended attempts to 56/60 and the
+  runtime decision would require about 100 ms more audio. It remains a separate
+  latency/robustness ablation, not an automatic v2 requirement.
+
+**Separate spatial observation and decision**
+
+The two Session B spatial errors were both RIGHT-firm taps. Across the 99
+available same-hand Phase 2C/A/B Stage 1 tap windows, the observed LEFT and
+RIGHT ranges retained a 1.385 dB development-only gap, but their session
+midpoints were shifted far below the original hand-confounded source midpoint.
+This supports later study of a protocol-specific fixed same-hand threshold more
+directly than an undefined quiet-audio zero point. Stage 3 already passed its
+Session B hard gate, so it remains unchanged during the first Stage 2 v2 work.
+
+The next implementation milestone is a versioned research-only Stage 2 v2
+extractor and grouped development harness using spectral bandwidth plus
+zero-crossing rate with the existing small NumPy L2-logistic family. The
+100–180 ms late-energy feature should remain an explicit measured ablation.
+Stage 1 and Stage 3 stay unchanged, no artifact should become the live default
+before review, and untouched Session C is mandatory after a revised pipeline is
+frozen. Detailed finite results and the waveform-free candidate table remain
+locally under ignored `reports/`.
+
 ## Local report handling
 
 Earlier generated diagnostic and characterization JSON reports exist locally.
