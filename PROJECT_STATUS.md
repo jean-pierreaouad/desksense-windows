@@ -1,6 +1,6 @@
 # DeskSense Project Status
 
-Status captured: 2026-09-04
+Status captured: 2026-09-05
 
 ## Project purpose
 
@@ -1168,10 +1168,15 @@ over the exact 300 labeled negative seconds exceeded the predeclared maximum of
 one. The official overall result is therefore FAIL; the gate is not revised
 after seeing the data.
 
-Phase 3B.3 is a read-only failure analysis using Sessions A and B as development
-evidence. If Session B informs any change, a new untouched Session C is required
-before a subsequent external robustness claim. The historical Session B result
-and its official FAIL remain preserved rather than being replaced.
+Phase 3B.3 used Sessions A and B as development evidence to select and track a
+two-feature Stage 2 v2 research representation. A fixed provisional A+B
+research artifact and prediction-independent Development Replication R1
+collection/evaluation harness are now implemented. They are not part of the
+production or live pipeline, R1 has not been collected, and v2 has not been
+externally validated. If Session B informs any change, a new untouched Session
+C is required before a subsequent external robustness claim. The historical
+Session B result and its official FAIL remain preserved rather than being
+replaced.
 The historical Phase 2C same-hand result remains the official 39/40 spatial
 external result and is not replaced by Phase 3 development replay.
 
@@ -1209,7 +1214,8 @@ project with attribution only where DeskSense evidence supports them.
 | 3B.1 — Session A offline design study | Complete; development evidence only |
 | 3B.2 — high-recall Stage 1 and frozen Stage 2 tapness model | Complete, checkpointed in `dc7b8eb3`, and externally evaluated |
 | 3B Session B external validation | Complete; official overall FAIL because eight Stage 2 false accepts exceeded the maximum of one |
-| 3B.3 — Sessions A+B failure analysis | Next; read-only analysis before any pipeline change |
+| 3B.3 — Stage 2 v2 research and replication | Two-feature research representation, provisional A+B artifact, and R1 harness implemented; R1 not collected; no live/default change |
+| Development Replication R1 | Next; fixed prediction-independent 30-positive/300-second protocol; development evidence, not external validation |
 | Session C external validation | Required after any pipeline change; not yet collected |
 | 4 — Windows action mapping | Deferred until robustness evidence passes |
 | 5 — cross-laptop adaptation and testing | Deferred |

@@ -22,6 +22,7 @@ from typing import Any
 
 import numpy as np
 
+from desksense.robustness import replay_detector_capture_losslessly
 from desksense.robustness_dataset import (
     LoadedRobustnessDataset,
     NEGATIVE_RECORD_TYPE,
@@ -639,6 +640,56 @@ def write_tapness_v2_research_report(report: Mapping[str, Any], path: Path) -> P
     return destination.resolve()
 
 
+def replay_tapness_v2_research_candidates(
+    session_path: Path,
+    *,
+    session_label: str = "development",
+    detector_factory: Callable[[], Any] = StreamingTapDetector,
+) -> dict[str, Any]:
+    """Replay one dataset into scalar v2 candidates without fitting anything."""
+
+    path = Path(session_path)
+    fingerprint_before = robustness_dataset_fingerprint(path)["sha256"]
+    dataset = load_robustness_dataset(path)
+    rows, population, context = _collect_research_candidates(
+        str(session_label), dataset, detector_factory
+    )
+    fingerprint_after = robustness_dataset_fingerprint(path)["sha256"]
+    if fingerprint_after != fingerprint_before:
+        raise TapnessV2ResearchError(
+            "A robustness dataset changed during research candidate replay."
+        )
+    return {
+        "session_id": dataset.session["session_id"],
+        "session_label": str(session_label),
+        "evidence_role": dataset.session.get("evidence_role"),
+        "fingerprint_before": fingerprint_before,
+        "fingerprint_after": fingerprint_after,
+        "dataset_files_modified": False,
+        "candidate_population": population,
+        "candidate_memberships": rows,
+        "evaluation_context": context,
+        "model_fitting_performed": False,
+        "spatial_inference_performed": False,
+    }
+
+
+def fit_grouped_v2_research_model(
+    candidates: Sequence[Mapping[str, Any]],
+) -> tuple[ResearchLogisticModel, float, dict[str, Any], list[dict[str, Any]]]:
+    """Select one grouped-OOF threshold and refit on all supplied development rows."""
+
+    if not candidates:
+        raise TapnessV2ResearchError("Research fitting requires candidate rows.")
+    matrix = np.vstack(
+        [
+            transform_tapness_v2_research_features(row["features"])
+            for row in candidates
+        ]
+    )
+    return _fit_with_grouped_oof_threshold(candidates, matrix)
+
+
 def _collect_research_candidates(
     session_label: str,
     dataset: LoadedRobustnessDataset,
@@ -649,10 +700,14 @@ def _collect_research_candidates(
     extraneous_start_count = 0
     extraneous_completed_count = 0
     associated_without_window = 0
+    associated_detected_count = 0
+    associated_rejected_count = 0
+    positive_associated_start_identities: list[dict[str, Any]] = []
+    negative_activity_start_identities: list[dict[str, Any]] = []
     for record in dataset.records:
-        detector = detector_factory()
-        results = tuple(detector.process_chunk(record.capture))
-        starts = tuple(detector.drain_candidate_start_diagnostics())
+        replay = replay_detector_capture_losslessly(record.capture, detector_factory)
+        results = replay.results
+        starts = replay.candidate_starts
         if record.metadata["record_type"] == POSITIVE_RECORD_TYPE:
             association = record.metadata["guided_cue"]["intended_event_association"]
             interval_start = int(association["start_frame_index_inclusive"])
@@ -670,6 +725,20 @@ def _collect_research_candidates(
             for item in starts
             if interval_start <= int(item.onset_frame_index) < interval_end
         }
+        start_identity_destination = (
+            positive_associated_start_identities
+            if target == 1
+            else negative_activity_start_identities
+        )
+        start_identity_destination.extend(
+            {
+                "source_record_id": str(record.metadata["record_id"]),
+                "onset_frame_index": int(item.onset_frame_index),
+                "candidate_start_route": str(item.route),
+            }
+            for item in starts
+            if interval_start <= int(item.onset_frame_index) < interval_end
+        )
         associated_start_count += len(associated_starts)
         extraneous_start_count += len(starts) - len(associated_starts)
         for result in results:
@@ -677,6 +746,14 @@ def _collect_research_candidates(
             if not interval_start <= onset < interval_end:
                 extraneous_completed_count += 1
                 continue
+            if result.status == "rejected":
+                associated_rejected_count += 1
+                continue
+            if result.status != "detected":
+                raise TapnessV2ResearchError(
+                    f"Unsupported detector result status: {result.status!r}."
+                )
+            associated_detected_count += 1
             if result.candidate_window is None:
                 associated_without_window += 1
                 continue
@@ -728,6 +805,11 @@ def _collect_research_candidates(
     positive_candidate_records = {
         row["source_record_id"] for row in rows if row["target"] == 1
     }
+    start_identity_sort_key = lambda item: (
+        item["source_record_id"],
+        item["onset_frame_index"],
+        item["candidate_start_route"],
+    )
     population = {
         "positive_intended_record_count": len(dataset.positive_records),
         "positive_candidate_count": sum(row["target"] == 1 for row in rows),
@@ -740,7 +822,15 @@ def _collect_research_candidates(
             sorted(Counter(row["stage1_route"] for row in rows if row["target"] == 0).items())
         ),
         "associated_candidate_start_count": associated_start_count,
+        "positive_associated_candidate_start_identities": sorted(
+            positive_associated_start_identities, key=start_identity_sort_key
+        ),
+        "negative_activity_candidate_start_identities": sorted(
+            negative_activity_start_identities, key=start_identity_sort_key
+        ),
         "associated_completed_without_window": associated_without_window,
+        "associated_completed_detections": associated_detected_count,
+        "associated_completed_rejections": associated_rejected_count,
         "extraneous_candidate_start_count": extraneous_start_count,
         "extraneous_completed_result_count": extraneous_completed_count,
     }

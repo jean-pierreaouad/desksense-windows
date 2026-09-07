@@ -71,6 +71,7 @@ DEFAULT_NEGATIVE_WARMUP_SECONDS = 1.0
 DEFAULT_NEGATIVE_POST_ACTIVITY_TAIL_SECONDS = 0.25
 ROBUSTNESS_REPORT_SCHEMA_VERSION = 2
 ROBUSTNESS_REPORT_TYPE = "phase3_robustness_offline_replay"
+OFFLINE_REPLAY_CHUNK_FRAMES = 12_000
 
 class RobustnessError(RuntimeError):
     """A Phase 3B.0 collection, replay, or reporting failure."""
@@ -78,6 +79,80 @@ class RobustnessError(RuntimeError):
     def __init__(self, message: str, *, category: str = "robustness_error") -> None:
         super().__init__(message)
         self.category = category
+
+
+@dataclass(frozen=True)
+class OfflineDetectorReplay:
+    """Lossless ordered detector evidence for one saved recording/epoch."""
+
+    results: tuple[DetectionResult, ...]
+    candidate_starts: tuple[Any, ...]
+    diagnostic_snapshot: Any
+    processed_chunk_count: int
+    chunk_frames: int
+    candidate_start_records_dropped: int
+
+
+def replay_detector_capture_losslessly(
+    capture: np.ndarray[Any, Any],
+    detector_factory: Callable[[], StreamingTapDetector],
+    *,
+    chunk_frames: int = OFFLINE_REPLAY_CHUNK_FRAMES,
+) -> OfflineDetectorReplay:
+    """Replay one recording while draining bounded start diagnostics losslessly."""
+
+    if isinstance(chunk_frames, bool) or not isinstance(chunk_frames, int) or chunk_frames <= 0:
+        raise ValueError("Offline replay chunk_frames must be a positive integer.")
+    detector = detector_factory()
+    results: list[DetectionResult] = []
+    starts: list[Any] = []
+    processed_chunks = 0
+    for start_frame in range(0, int(capture.shape[0]), chunk_frames):
+        chunk = capture[start_frame : start_frame + chunk_frames]
+        results.extend(detector.process_chunk(chunk))
+        starts.extend(detector.drain_candidate_start_diagnostics())
+        processed_chunks += 1
+        snapshot = detector.diagnostic_snapshot()
+        dropped = int(snapshot.cumulative_counters.candidate_start_records_dropped)
+        if dropped:
+            raise RobustnessError(
+                "Offline replay lost candidate-start diagnostics.",
+                category="diagnostic_loss",
+            )
+    snapshot = detector.diagnostic_snapshot()
+    dropped = int(snapshot.cumulative_counters.candidate_start_records_dropped)
+    started = int(snapshot.cumulative_counters.onset_candidates_started)
+    if dropped or started != len(starts):
+        raise RobustnessError(
+            "Offline replay candidate-start accounting is inconsistent.",
+            category="diagnostic_loss",
+        )
+    start_onsets = [int(item.onset_frame_index) for item in starts]
+    result_onsets = [int(item.onset_frame_index) for item in results]
+    if start_onsets != sorted(start_onsets) or result_onsets != sorted(result_onsets):
+        raise RobustnessError(
+            "Offline replay detector evidence is out of order.",
+            category="replay_order_error",
+        )
+    known_starts = set(start_onsets)
+    unmatched_detected = [
+        onset
+        for onset, result in zip(result_onsets, results, strict=True)
+        if result.status == "detected" and onset not in known_starts
+    ]
+    if unmatched_detected:
+        raise RobustnessError(
+            "A completed detected candidate has no matching start diagnostic.",
+            category="replay_consistency_error",
+        )
+    return OfflineDetectorReplay(
+        results=tuple(results),
+        candidate_starts=tuple(starts),
+        diagnostic_snapshot=snapshot,
+        processed_chunk_count=processed_chunks,
+        chunk_frames=chunk_frames,
+        candidate_start_records_dropped=dropped,
+    )
 
 
 @dataclass(frozen=True)
@@ -761,9 +836,12 @@ def _replay_positive_record(
     detector = detector_factory()
     if tapness_baseline is not None:
         _require_tapness_detector_compatibility(detector, tapness_baseline)
-    results = tuple(detector.process_chunk(record.capture))
-    starts = tuple(detector.drain_candidate_start_diagnostics())
-    snapshot = detector.diagnostic_snapshot()
+    replay = replay_detector_capture_losslessly(
+        record.capture, lambda: detector
+    )
+    results = replay.results
+    starts = replay.candidate_starts
+    snapshot = replay.diagnostic_snapshot
     association_start, association_end = _positive_association_bounds(
         record.metadata
     )
@@ -841,6 +919,12 @@ def _replay_positive_record(
             else None
         ),
         "detector_counters": asdict(snapshot.cumulative_counters),
+        "offline_replay_diagnostics": {
+            "chunk_frames": replay.chunk_frames,
+            "processed_chunk_count": replay.processed_chunk_count,
+            "candidate_start_records_dropped": replay.candidate_start_records_dropped,
+            "lossless_candidate_start_accounting": True,
+        },
     }
 
 
@@ -852,8 +936,11 @@ def _replay_negative_record(
     detector = detector_factory()
     if tapness_baseline is not None:
         _require_tapness_detector_compatibility(detector, tapness_baseline)
-    results = tuple(detector.process_chunk(record.capture))
-    starts = tuple(detector.drain_candidate_start_diagnostics())
+    replay = replay_detector_capture_losslessly(
+        record.capture, lambda: detector
+    )
+    results = replay.results
+    starts = replay.candidate_starts
     activity_start = int(record.metadata["activity_start_frame_index"])
     activity_end = int(record.metadata["activity_end_frame_index_exclusive"])
     start_records = [
@@ -967,6 +1054,12 @@ def _replay_negative_record(
         "candidate_starts": start_records,
         "completed_events": events,
         "semantic_label": "no_intended_desk_tap",
+        "offline_replay_diagnostics": {
+            "chunk_frames": replay.chunk_frames,
+            "processed_chunk_count": replay.processed_chunk_count,
+            "candidate_start_records_dropped": replay.candidate_start_records_dropped,
+            "lossless_candidate_start_accounting": True,
+        },
     }
 
 

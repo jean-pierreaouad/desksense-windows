@@ -174,24 +174,42 @@ class _FakeReplayDetector:
         *,
         starts: tuple[CandidateStartDiagnostic, ...] = (),
         results: tuple[DetectionResult, ...] = (),
+        dropped_start_records: int = 0,
+        started_count: int | None = None,
     ) -> None:
         self.starts = starts
         self.results = results
+        self.all_starts = starts
+        self.all_results = results
+        self.dropped_start_records = dropped_start_records
+        self.started_count = started_count
+        self.emitted = False
 
     def process_chunk(self, _capture):
+        if self.emitted:
+            return ()
+        self.emitted = True
         return self.results
 
     def drain_candidate_start_diagnostics(self):
-        return self.starts
+        if not self.emitted:
+            return ()
+        starts, self.starts = self.starts, ()
+        return starts
 
     def diagnostic_snapshot(self) -> DetectorDiagnosticSnapshot:
         counters = DetectorDiagnosticCounters(
-            onset_candidates_started=len(self.starts),
+            onset_candidates_started=(
+                len(self.all_starts)
+                if self.started_count is None
+                else self.started_count
+            ),
+            candidate_start_records_dropped=self.dropped_start_records,
             completed_detections=sum(
-                result.status == "detected" for result in self.results
+                result.status == "detected" for result in self.all_results
             ),
             completed_rejections=sum(
-                result.status == "rejected" for result in self.results
+                result.status == "rejected" for result in self.all_results
             ),
         )
         return DetectorDiagnosticSnapshot(
@@ -973,3 +991,72 @@ def test_report_is_waveform_free_and_refuses_overwrite(tmp_path) -> None:
     assert '"candidate_window":' not in text
     with pytest.raises(FileExistsError):
         write_robustness_report(report, path)
+
+
+def test_lossless_offline_replay_preserves_more_than_64_candidate_starts() -> None:
+    expected_onsets = [48_000 + index * 18_000 for index in range(70)]
+    capture = np.zeros((expected_onsets[-1] + 12_000, 2), dtype=np.float32)
+    for onset in expected_onsets:
+        capture[onset] = (0.5, -0.4)
+
+    replay = robustness.replay_detector_capture_losslessly(
+        capture, StreamingTapDetector
+    )
+
+    assert [item.onset_frame_index for item in replay.candidate_starts] == expected_onsets
+    assert [item.onset_frame_index for item in replay.results] == expected_onsets
+    assert all(item.status == "detected" for item in replay.results)
+    assert replay.candidate_start_records_dropped == 0
+    assert replay.diagnostic_snapshot.cumulative_counters.onset_candidates_started == 70
+    assert replay.processed_chunk_count > 64
+
+
+def test_lossless_replay_rejects_dropped_candidate_start_records() -> None:
+    detector = _FakeReplayDetector(dropped_start_records=1)
+    with pytest.raises(robustness.RobustnessError) as error:
+        robustness.replay_detector_capture_losslessly(
+            np.zeros((240, 2), dtype=np.float32), lambda: detector
+        )
+    assert error.value.category == "diagnostic_loss"
+
+
+def test_lossless_replay_rejects_inconsistent_candidate_start_count() -> None:
+    detector = _FakeReplayDetector(starts=(_candidate_start(100),), started_count=2)
+    with pytest.raises(robustness.RobustnessError) as error:
+        robustness.replay_detector_capture_losslessly(
+            np.zeros((240, 2), dtype=np.float32), lambda: detector
+        )
+    assert error.value.category == "diagnostic_loss"
+
+
+@pytest.mark.parametrize(
+    "detector",
+    [
+        _FakeReplayDetector(starts=(_candidate_start(200), _candidate_start(100))),
+        _FakeReplayDetector(
+            starts=(_candidate_start(100), _candidate_start(200)),
+            results=(_detection_result(200), _detection_result(100)),
+        ),
+    ],
+    ids=("candidate-starts", "completed-results"),
+)
+def test_lossless_replay_rejects_out_of_onset_order(
+    detector: _FakeReplayDetector,
+) -> None:
+    with pytest.raises(robustness.RobustnessError) as error:
+        robustness.replay_detector_capture_losslessly(
+            np.zeros((240, 2), dtype=np.float32), lambda: detector
+        )
+    assert error.value.category == "replay_order_error"
+
+
+def test_lossless_replay_rejects_detected_completion_without_matching_start() -> None:
+    detector = _FakeReplayDetector(
+        starts=(_candidate_start(100),),
+        results=(_detection_result(101),),
+    )
+    with pytest.raises(robustness.RobustnessError) as error:
+        robustness.replay_detector_capture_losslessly(
+            np.zeros((240, 2), dtype=np.float32), lambda: detector
+        )
+    assert error.value.category == "replay_consistency_error"

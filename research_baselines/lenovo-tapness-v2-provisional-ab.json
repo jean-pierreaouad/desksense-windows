@@ -1,0 +1,2365 @@
+{
+  "artifact_schema_version": 1,
+  "artifact_type": "desksense_provisional_tapness_v2_research_baseline",
+  "compatibility": {
+    "candidate_frames": 9600,
+    "channel_count": 2,
+    "endpoint_name": "Microphone Array 1 (Intel\u00ae Smart Sound Technology (Intel\u00ae SST) Microphone)",
+    "host_api_name": "Windows WDM-KS",
+    "sample_rate_hz": 48000.0
+  },
+  "created_at_utc": "2026-09-05T10:09:56.957046Z",
+  "development_selection": {
+    "experiment_19_nested_development_metrics": {
+      "pooled_nested_grouped_oof": {
+        "folds": [
+          {
+            "fold_index": 0,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001"
+            ],
+            "selected_threshold_from_inner_grouped_oof": 0.7705853285776503,
+            "threshold_selection": {
+              "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+              "minimum_positive_candidate_recall": 0.95,
+              "required_positive_candidate_count": 45,
+              "selected_negative_false_accepts": 0,
+              "selected_positive_candidates": 47,
+              "selected_threshold": 0.7705853285776503
+            },
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_preprocessing": true
+          },
+          {
+            "fold_index": 1,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002"
+            ],
+            "selected_threshold_from_inner_grouped_oof": 0.6833326990663272,
+            "threshold_selection": {
+              "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+              "minimum_positive_candidate_recall": 0.95,
+              "required_positive_candidate_count": 45,
+              "selected_negative_false_accepts": 3,
+              "selected_positive_candidates": 47,
+              "selected_threshold": 0.6833326990663272
+            },
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002",
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_preprocessing": true
+          },
+          {
+            "fold_index": 2,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003"
+            ],
+            "selected_threshold_from_inner_grouped_oof": 0.6383419478663118,
+            "threshold_selection": {
+              "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+              "minimum_positive_candidate_recall": 0.95,
+              "required_positive_candidate_count": 45,
+              "selected_negative_false_accepts": 3,
+              "selected_positive_candidates": 47,
+              "selected_threshold": 0.6383419478663118
+            },
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002",
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_preprocessing": true
+          },
+          {
+            "fold_index": 3,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001"
+            ],
+            "selected_threshold_from_inner_grouped_oof": 0.6801024894664818,
+            "threshold_selection": {
+              "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+              "minimum_positive_candidate_recall": 0.95,
+              "required_positive_candidate_count": 45,
+              "selected_negative_false_accepts": 3,
+              "selected_positive_candidates": 47,
+              "selected_threshold": 0.6801024894664818
+            },
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_preprocessing": true
+          },
+          {
+            "fold_index": 4,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "selected_threshold_from_inner_grouped_oof": 0.6735632950238895,
+            "threshold_selection": {
+              "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+              "minimum_positive_candidate_recall": 0.95,
+              "required_positive_candidate_count": 46,
+              "selected_negative_false_accepts": 3,
+              "selected_positive_candidates": 48,
+              "selected_threshold": 0.6735632950238895
+            },
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002",
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001"
+            ],
+            "training_only_preprocessing": true
+          }
+        ],
+        "metrics": {
+          "by_strength": {
+            "firm": {
+              "intended_attempts": 20,
+              "stage1_candidate_attempts": 20,
+              "stage2_research_accepted_attempts": 20
+            },
+            "light": {
+              "intended_attempts": 20,
+              "stage1_candidate_attempts": 20,
+              "stage2_research_accepted_attempts": 20
+            },
+            "normal": {
+              "intended_attempts": 20,
+              "stage1_candidate_attempts": 19,
+              "stage2_research_accepted_attempts": 19
+            }
+          },
+          "by_zone": {
+            "LEFT": {
+              "intended_attempts": 30,
+              "stage1_candidate_attempts": 30,
+              "stage2_research_accepted_attempts": 30
+            },
+            "RIGHT": {
+              "intended_attempts": 30,
+              "stage1_candidate_attempts": 29,
+              "stage2_research_accepted_attempts": 29
+            }
+          },
+          "by_zone_and_strength": {
+            "LEFT-firm": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "LEFT-light": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "LEFT-normal": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "RIGHT-firm": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "RIGHT-light": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "RIGHT-normal": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 9,
+              "stage2_research_accepted_attempts": 9
+            }
+          },
+          "false_accepts_by_activity": {
+            "desk_object_interaction": 3
+          },
+          "negative_candidate_count": 124,
+          "negative_false_accept_count": 3,
+          "negative_false_accepts_per_minute": 0.4090909090909091,
+          "negative_labeled_seconds": 440.0,
+          "per_activity": {
+            "desk_object_interaction": {
+              "labeled_seconds": 65.0,
+              "research_false_accepts": 3,
+              "research_false_accepts_per_minute": 2.7692307692307696,
+              "stage1_candidates": 39
+            },
+            "hand_movement": {
+              "labeled_seconds": 65.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 24
+            },
+            "laptop_movement": {
+              "labeled_seconds": 65.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 15
+            },
+            "quiet": {
+              "labeled_seconds": 50.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 0
+            },
+            "speech": {
+              "labeled_seconds": 65.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 0
+            },
+            "trackpad": {
+              "labeled_seconds": 65.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 20
+            },
+            "typing": {
+              "labeled_seconds": 65.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 26
+            }
+          },
+          "positive_acceptance_over_all_intended": 0.9833333333333333,
+          "positive_attempts_accepted": 59,
+          "positive_attempts_with_stage1_candidate": 59,
+          "positive_candidate_count": 59,
+          "positive_intended_attempt_count": 60
+        },
+        "outer_fold_count": 5,
+        "training_fold_only_preprocessing_model_and_threshold": true,
+        "whole_source_record_groups": true
+      },
+      "train_A_test_B": {
+        "development_model": {
+          "coefficients": [
+            -2.3502572352354285,
+            -2.3315961921810384
+          ],
+          "intercept": -2.7594407292837633,
+          "l2_regularization": 0.01,
+          "means": [
+            5.740966785740297,
+            -4.079053116006615
+          ],
+          "scales": [
+            1.2362687856157177,
+            1.18378924872379
+          ],
+          "score": "uncalibrated sigmoid output",
+          "status": "research_only_not_a_frozen_inference_artifact"
+        },
+        "metrics": {
+          "by_strength": {
+            "firm": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "light": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "normal": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            }
+          },
+          "by_zone": {
+            "LEFT": {
+              "intended_attempts": 15,
+              "stage1_candidate_attempts": 15,
+              "stage2_research_accepted_attempts": 15
+            },
+            "RIGHT": {
+              "intended_attempts": 15,
+              "stage1_candidate_attempts": 15,
+              "stage2_research_accepted_attempts": 15
+            }
+          },
+          "by_zone_and_strength": {
+            "LEFT-firm": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "LEFT-light": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "LEFT-normal": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "RIGHT-firm": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "RIGHT-light": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "RIGHT-normal": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            }
+          },
+          "false_accepts_by_activity": {
+            "desk_object_interaction": 2
+          },
+          "negative_candidate_count": 74,
+          "negative_false_accept_count": 2,
+          "negative_false_accepts_per_minute": 0.4,
+          "negative_labeled_seconds": 300.0,
+          "per_activity": {
+            "desk_object_interaction": {
+              "labeled_seconds": 45.0,
+              "research_false_accepts": 2,
+              "research_false_accepts_per_minute": 2.6666666666666665,
+              "stage1_candidates": 20
+            },
+            "hand_movement": {
+              "labeled_seconds": 45.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 20
+            },
+            "laptop_movement": {
+              "labeled_seconds": 45.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 10
+            },
+            "quiet": {
+              "labeled_seconds": 30.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 0
+            },
+            "speech": {
+              "labeled_seconds": 45.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 0
+            },
+            "trackpad": {
+              "labeled_seconds": 45.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 12
+            },
+            "typing": {
+              "labeled_seconds": 45.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 12
+            }
+          },
+          "positive_acceptance_over_all_intended": 1.0,
+          "positive_attempts_accepted": 30,
+          "positive_attempts_with_stage1_candidate": 30,
+          "positive_candidate_count": 30,
+          "positive_intended_attempt_count": 30
+        },
+        "threshold_selection": {
+          "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+          "minimum_positive_candidate_recall": 0.95,
+          "required_positive_candidate_count": 28,
+          "selected_negative_false_accepts": 1,
+          "selected_positive_candidates": 29,
+          "selected_threshold": 0.762704182159097
+        },
+        "training_only_selected_threshold": 0.762704182159097,
+        "training_oof_folds": [
+          {
+            "fold_index": 0,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001"
+            ],
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.601383602660818,
+                -4.1954747742983365
+              ],
+              "scales": [
+                1.1122484171228495,
+                1.09459944912516
+              ]
+            }
+          },
+          {
+            "fold_index": 1,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002"
+            ],
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.708568852723835,
+                -4.1227389976507185
+              ],
+              "scales": [
+                1.2583538928026419,
+                1.1859120579688975
+              ]
+            }
+          },
+          {
+            "fold_index": 2,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001"
+            ],
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.7034167608792385,
+                -4.126382422036809
+              ],
+              "scales": [
+                1.2515692645939935,
+                1.2063800875169532
+              ]
+            }
+          },
+          {
+            "fold_index": 3,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002"
+            ],
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.82451958993467,
+                -3.993863329477211
+              ],
+              "scales": [
+                1.2952489936415255,
+                1.236682580641046
+              ]
+            }
+          },
+          {
+            "fold_index": 4,
+            "held_out_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_005"
+            ],
+            "training_group_ids": [
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+              "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+              "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+              "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+              "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+              "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+              "20260901T131308.362205Z-f9e2b1ec-typing_001",
+              "20260901T131308.362205Z-f9e2b1ec-typing_002"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.838020289930706,
+                -3.984838831598567
+              ],
+              "scales": [
+                1.2340934990036583,
+                1.1727035757047009
+              ]
+            }
+          }
+        ]
+      },
+      "train_B_test_A": {
+        "development_model": {
+          "coefficients": [
+            -2.538078214189465,
+            -1.8159203134685866
+          ],
+          "intercept": -3.5371609955431924,
+          "l2_regularization": 0.01,
+          "means": [
+            5.6657504651759805,
+            -4.036772121346083
+          ],
+          "scales": [
+            1.2232729694756495,
+            0.942797279646463
+          ],
+          "score": "uncalibrated sigmoid output",
+          "status": "research_only_not_a_frozen_inference_artifact"
+        },
+        "metrics": {
+          "by_strength": {
+            "firm": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "light": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 10,
+              "stage2_research_accepted_attempts": 10
+            },
+            "normal": {
+              "intended_attempts": 10,
+              "stage1_candidate_attempts": 9,
+              "stage2_research_accepted_attempts": 9
+            }
+          },
+          "by_zone": {
+            "LEFT": {
+              "intended_attempts": 15,
+              "stage1_candidate_attempts": 15,
+              "stage2_research_accepted_attempts": 15
+            },
+            "RIGHT": {
+              "intended_attempts": 15,
+              "stage1_candidate_attempts": 14,
+              "stage2_research_accepted_attempts": 14
+            }
+          },
+          "by_zone_and_strength": {
+            "LEFT-firm": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "LEFT-light": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "LEFT-normal": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "RIGHT-firm": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "RIGHT-light": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 5,
+              "stage2_research_accepted_attempts": 5
+            },
+            "RIGHT-normal": {
+              "intended_attempts": 5,
+              "stage1_candidate_attempts": 4,
+              "stage2_research_accepted_attempts": 4
+            }
+          },
+          "false_accepts_by_activity": {
+            "desk_object_interaction": 1
+          },
+          "negative_candidate_count": 50,
+          "negative_false_accept_count": 1,
+          "negative_false_accepts_per_minute": 0.42857142857142855,
+          "negative_labeled_seconds": 140.0,
+          "per_activity": {
+            "desk_object_interaction": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 1,
+              "research_false_accepts_per_minute": 3.0,
+              "stage1_candidates": 19
+            },
+            "hand_movement": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 4
+            },
+            "laptop_movement": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 5
+            },
+            "quiet": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 0
+            },
+            "speech": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 0
+            },
+            "trackpad": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 8
+            },
+            "typing": {
+              "labeled_seconds": 20.0,
+              "research_false_accepts": 0,
+              "research_false_accepts_per_minute": 0.0,
+              "stage1_candidates": 14
+            }
+          },
+          "positive_acceptance_over_all_intended": 0.9666666666666667,
+          "positive_attempts_accepted": 29,
+          "positive_attempts_with_stage1_candidate": 29,
+          "positive_candidate_count": 29,
+          "positive_intended_attempt_count": 30
+        },
+        "threshold_selection": {
+          "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+          "minimum_positive_candidate_recall": 0.95,
+          "required_positive_candidate_count": 29,
+          "selected_negative_false_accepts": 2,
+          "selected_positive_candidates": 30,
+          "selected_threshold": 0.622026815667178
+        },
+        "training_only_selected_threshold": 0.622026815667178,
+        "training_oof_folds": [
+          {
+            "fold_index": 0,
+            "held_out_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001"
+            ],
+            "training_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.662718716019959,
+                -4.053914287782828
+              ],
+              "scales": [
+                1.2411098157951337,
+                0.9403504621749185
+              ]
+            }
+          },
+          {
+            "fold_index": 1,
+            "held_out_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002"
+            ],
+            "training_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.424729871204036,
+                -4.207153962632618
+              ],
+              "scales": [
+                1.0934101716119446,
+                0.842392014971211
+              ]
+            }
+          },
+          {
+            "fold_index": 2,
+            "held_out_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003"
+            ],
+            "training_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.692095572402876,
+                -3.981440684966745
+              ],
+              "scales": [
+                1.238947499309526,
+                0.9729024525190746
+              ]
+            }
+          },
+          {
+            "fold_index": 3,
+            "held_out_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001"
+            ],
+            "training_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.756600316356783,
+                -3.9891242168603784
+              ],
+              "scales": [
+                1.2346078312773485,
+                0.9544889564065088
+              ]
+            }
+          },
+          {
+            "fold_index": 4,
+            "held_out_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-left_light_005",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+              "20260904T171453.458221Z-4ecb16ad-right_light_005",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+              "20260904T171453.458221Z-4ecb16ad-typing-001"
+            ],
+            "training_group_ids": [
+              "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+              "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-left_light_001",
+              "20260904T171453.458221Z-4ecb16ad-left_light_002",
+              "20260904T171453.458221Z-4ecb16ad-left_light_003",
+              "20260904T171453.458221Z-4ecb16ad-left_light_004",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+              "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+              "20260904T171453.458221Z-4ecb16ad-right_light_001",
+              "20260904T171453.458221Z-4ecb16ad-right_light_002",
+              "20260904T171453.458221Z-4ecb16ad-right_light_003",
+              "20260904T171453.458221Z-4ecb16ad-right_light_004",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+              "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+              "20260904T171453.458221Z-4ecb16ad-trackpad-001"
+            ],
+            "training_only_standardization": {
+              "means": [
+                5.769292629437218,
+                -3.97095832581977
+              ],
+              "scales": [
+                1.2608179898362162,
+                0.9685493137305246
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "external_validation": false,
+    "final_fit": "after selecting the threshold, means/scales/coefficients/intercept are refit on all 183 A+B development candidates",
+    "grouped_oof_folds": [
+      {
+        "fold_index": 0,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+          "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-left_light_001",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-right_light_001",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_001"
+        ],
+        "training_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+          "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+          "20260901T131308.362205Z-f9e2b1ec-typing_001",
+          "20260901T131308.362205Z-f9e2b1ec-typing_002",
+          "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-left_light_002",
+          "20260904T171453.458221Z-4ecb16ad-left_light_003",
+          "20260904T171453.458221Z-4ecb16ad-left_light_004",
+          "20260904T171453.458221Z-4ecb16ad-left_light_005",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-right_light_002",
+          "20260904T171453.458221Z-4ecb16ad-right_light_003",
+          "20260904T171453.458221Z-4ecb16ad-right_light_004",
+          "20260904T171453.458221Z-4ecb16ad-right_light_005",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+          "20260904T171453.458221Z-4ecb16ad-typing-001"
+        ],
+        "training_only_standardization": {
+          "means": [
+            5.636304324135364,
+            -4.114878292924541
+          ],
+          "scales": [
+            1.1877189230384166,
+            1.012102235072939
+          ]
+        }
+      },
+      {
+        "fold_index": 1,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+          "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-left_light_002",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-right_light_002",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_002"
+        ],
+        "training_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+          "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+          "20260901T131308.362205Z-f9e2b1ec-typing_001",
+          "20260901T131308.362205Z-f9e2b1ec-typing_002",
+          "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+          "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-left_light_001",
+          "20260904T171453.458221Z-4ecb16ad-left_light_003",
+          "20260904T171453.458221Z-4ecb16ad-left_light_004",
+          "20260904T171453.458221Z-4ecb16ad-left_light_005",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-right_light_001",
+          "20260904T171453.458221Z-4ecb16ad-right_light_003",
+          "20260904T171453.458221Z-4ecb16ad-right_light_004",
+          "20260904T171453.458221Z-4ecb16ad-right_light_005",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+          "20260904T171453.458221Z-4ecb16ad-typing-001"
+        ],
+        "training_only_standardization": {
+          "means": [
+            5.548138124038729,
+            -4.170451803944836
+          ],
+          "scales": [
+            1.176435396804561,
+            1.0071325380293186
+          ]
+        }
+      },
+      {
+        "fold_index": 2,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-typing_001",
+          "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-left_light_003",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-right_light_003",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_003"
+        ],
+        "training_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+          "20260901T131308.362205Z-f9e2b1ec-typing_002",
+          "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+          "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-left_light_001",
+          "20260904T171453.458221Z-4ecb16ad-left_light_002",
+          "20260904T171453.458221Z-4ecb16ad-left_light_004",
+          "20260904T171453.458221Z-4ecb16ad-left_light_005",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-right_light_001",
+          "20260904T171453.458221Z-4ecb16ad-right_light_002",
+          "20260904T171453.458221Z-4ecb16ad-right_light_004",
+          "20260904T171453.458221Z-4ecb16ad-right_light_005",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+          "20260904T171453.458221Z-4ecb16ad-typing-001"
+        ],
+        "training_only_standardization": {
+          "means": [
+            5.6966852434068045,
+            -4.040200848643797
+          ],
+          "scales": [
+            1.2440922819883795,
+            1.0760478908288156
+          ]
+        }
+      },
+      {
+        "fold_index": 3,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-typing_002",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-left_light_004",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-right_light_004",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-trackpad-001"
+        ],
+        "training_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+          "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+          "20260901T131308.362205Z-f9e2b1ec-typing_001",
+          "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+          "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-left_light_001",
+          "20260904T171453.458221Z-4ecb16ad-left_light_002",
+          "20260904T171453.458221Z-4ecb16ad-left_light_003",
+          "20260904T171453.458221Z-4ecb16ad-left_light_005",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-right_light_001",
+          "20260904T171453.458221Z-4ecb16ad-right_light_002",
+          "20260904T171453.458221Z-4ecb16ad-right_light_003",
+          "20260904T171453.458221Z-4ecb16ad-right_light_005",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-typing-001"
+        ],
+        "training_only_standardization": {
+          "means": [
+            5.785579206416677,
+            -3.991146238243559
+          ],
+          "scales": [
+            1.261285596165611,
+            1.0839176354894648
+          ]
+        }
+      },
+      {
+        "fold_index": 4,
+        "held_out_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-left_light_005",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+          "20260904T171453.458221Z-4ecb16ad-right_light_005",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+          "20260904T171453.458221Z-4ecb16ad-typing-001"
+        ],
+        "training_group_ids": [
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+          "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+          "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+          "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+          "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+          "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+          "20260901T131308.362205Z-f9e2b1ec-typing_001",
+          "20260901T131308.362205Z-f9e2b1ec-typing_002",
+          "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+          "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-left_light_001",
+          "20260904T171453.458221Z-4ecb16ad-left_light_002",
+          "20260904T171453.458221Z-4ecb16ad-left_light_003",
+          "20260904T171453.458221Z-4ecb16ad-left_light_004",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+          "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+          "20260904T171453.458221Z-4ecb16ad-right_light_001",
+          "20260904T171453.458221Z-4ecb16ad-right_light_002",
+          "20260904T171453.458221Z-4ecb16ad-right_light_003",
+          "20260904T171453.458221Z-4ecb16ad-right_light_004",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+          "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+          "20260904T171453.458221Z-4ecb16ad-trackpad-001"
+        ],
+        "training_only_standardization": {
+          "means": [
+            5.8008468383430305,
+            -3.977331136649029
+          ],
+          "scales": [
+            1.2490888999876153,
+            1.06716344832581
+          ]
+        }
+      }
+    ],
+    "grouping": "whole source recordings; deterministic folds stratified by session and target",
+    "operating_threshold": "one grouped-OOF score vector over pooled A+B; require >=95% positive-candidate recall, minimize negative false accepts, maximize positive accepts, then choose highest threshold",
+    "preprocessing": "each grouped OOF fold learns transforms' standardization and model only from its training rows"
+  },
+  "evidence_boundary": {
+    "development_replication_r1_used_for_fitting": false,
+    "session_b_historical_external_result_preserved": true,
+    "session_b_now_development_for_v2": true,
+    "untouched_session_c_required_after_final_v2_freeze": true
+  },
+  "feature_schema": {
+    "candidate_domain": {
+      "center_offset_frames": 4800,
+      "channel_count": 2,
+      "frame_count": 9600,
+      "raw_candidate_modified": false,
+      "sample_rate_hz": 48000.0
+    },
+    "excluded_inputs": [
+      "LEFT/RIGHT labels",
+      "signed channel amplitude ratio",
+      "spatial threshold",
+      "predicted spatial zone",
+      "spatial margin"
+    ],
+    "features": [
+      {
+        "candidate_interval": {
+          "end": "refined center + 50 ms, exclusive",
+          "end_offset_frames_exclusive": 7200,
+          "frame_count": 2400,
+          "start": "refined center, inclusive",
+          "start_offset_frames": 4800
+        },
+        "centroid": "sum(frequency * power) / max(sum(power), 1e-18)",
+        "dc_reference": "subtract each channel's mean over up to 12 ms immediately before detector onset; use the complete candidate only when that reference is empty",
+        "dc_treatment": "set the pooled zero-frequency power bin to zero",
+        "definition": "sqrt(sum((frequency-centroid)**2 * power) / max(sum(power), 1e-18))",
+        "fft": "np.fft.rfft independently by channel with n=2400 and no normalization; bins from np.fft.rfftfreq(2400, 1/48000)",
+        "log_epsilon": 1e-12,
+        "name": "spectral_bandwidth_hz",
+        "power": "sum(abs(channel_rfft)**2) across the two channels",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "units": "Hz",
+        "window": "NumPy symmetric Hann: np.hanning(2400), equivalent to 0.5 - 0.5*cos(2*pi*n/(M-1))",
+        "zero_energy_result": 0.0
+      },
+      {
+        "candidate_interval": {
+          "end": "min(candidate end, onset + 100 ms), exclusive",
+          "maximum_frame_count": 4800,
+          "start": "detector onset, inclusive"
+        },
+        "definition": "for each channel compare np.signbit(sample[i+1]) != np.signbit(sample[i]); average all adjacent comparisons across time and the two channels",
+        "denominator": "(interval_frame_count - 1) * 2 channels; return zero when fewer than two interval frames are available",
+        "log_epsilon": 1e-12,
+        "name": "post_0_100_zero_crossing_rate",
+        "transformation": "natural_log_with_fixed_epsilon",
+        "units": "fraction_of_adjacent_samples",
+        "zero_rule": "positive zero is nonnegative under np.signbit; IEEE negative zero retains its negative sign bit"
+      }
+    ],
+    "finite_value_handling": "candidate samples and extracted features must be finite; invalid values are rejected",
+    "late_context_ablation": {
+      "included": false,
+      "reason": "100-180 ms context improved development negative rejection but reduced tap recall and adds roughly 100 ms history/latency"
+    },
+    "ordered_feature_names": [
+      "spectral_bandwidth_hz",
+      "post_0_100_zero_crossing_rate"
+    ],
+    "spatial_inputs_used": false,
+    "status": "research_only_not_live_or_frozen",
+    "version": 1
+  },
+  "model": {
+    "coefficients": [
+      -2.3350101420675204,
+      -2.1605692696663525
+    ],
+    "decision_threshold": 0.6786616454344989,
+    "fitting_algorithm": "deterministic NumPy Newton/IRLS; intercept unregularized",
+    "intercept": -3.1820820485112873,
+    "l2_regularization": 0.01,
+    "ordered_feature_names": [
+      "spectral_bandwidth_hz",
+      "post_0_100_zero_crossing_rate"
+    ],
+    "score_is_calibrated_probability": false,
+    "standardization": {
+      "means": [
+        5.698220898643634,
+        -4.055024572592979
+      ],
+      "rule": "all-A+B transformed-feature population mean/std (ddof=0); replace scale <=1e-12 with 1",
+      "scales": [
+        1.229464637607929,
+        1.0538236386850006
+      ]
+    },
+    "threshold_selection": {
+      "method": "grouped out-of-fold development scores; require at least 95% positive-candidate recall when feasible, minimize negative false accepts, maximize positive accepts, then choose the highest threshold",
+      "minimum_positive_candidate_recall": 0.95,
+      "required_positive_candidate_count": 57,
+      "selected_negative_false_accepts": 3,
+      "selected_positive_candidates": 59,
+      "selected_threshold": 0.6786616454344989
+    },
+    "tie_rule": "score >= decision_threshold predicts TAP",
+    "type": "l2_regularized_binary_logistic_regression",
+    "uncalibrated_score": "sigmoid of standardized linear decision score"
+  },
+  "privacy": {
+    "derived_metadata_only": true,
+    "local_processing": true,
+    "raw_waveform_arrays_stored": false
+  },
+  "project_phase": "3B.3",
+  "required_stage1_policy": {
+    "audio_domain": {
+      "channel_count": 2,
+      "sample_rate_hz": 48000.0
+    },
+    "candidate_routes": {
+      "combination": "ordinary OR strong_impact_recovery",
+      "duplicate_candidate_when_both_routes_pass": false,
+      "ordinary": "RMS AND peak AND crest",
+      "ordinary_route_diagnostic_precedence": true,
+      "strong_impact_recovery": "RMS ratio AND peak ratio; no crest requirement"
+    },
+    "candidate_window_geometry": {
+      "duration_seconds": 0.2,
+      "frames": 9600,
+      "pre_center_frames": 4800
+    },
+    "center_search": {
+      "post_onset_frames": 1200,
+      "post_onset_seconds": 0.025,
+      "pre_onset_frames": 576,
+      "pre_onset_seconds": 0.012,
+      "transient_energy_window_frames": 240,
+      "transient_energy_window_seconds": 0.005
+    },
+    "clipping": {
+      "reject_near_clipping": true,
+      "threshold": 0.98
+    },
+    "fixed_block": {
+      "duration_seconds": 0.005,
+      "frames": 240,
+      "overlapping_blocks": false
+    },
+    "history": {
+      "capacity_frames": 11040,
+      "safety_frames": 1200,
+      "safety_seconds": 0.025
+    },
+    "noise_floor": {
+      "adaptation_alpha_per_fixed_block": 0.02,
+      "update_policy": "existing EWMA behavior unchanged"
+    },
+    "ordinary_gate": {
+      "minimum_crest_factor": 3.0,
+      "minimum_noise_floor_rms": 1e-07,
+      "minimum_onset_peak": 0.00048828125,
+      "minimum_onset_rms": 0.0001220703125,
+      "peak_noise_multiplier": 6.0,
+      "rms_noise_multiplier": 3.0
+    },
+    "policy_version": 1,
+    "refractory": {
+      "duration_seconds": 0.25,
+      "frames": 12000
+    },
+    "startup_learning": {
+      "duration_seconds_requested": 0.75,
+      "frames_effective": 36000
+    },
+    "strong_impact_recovery": {
+      "crest_gate_required": false,
+      "peak_ratio_minimum_inclusive": 8.0,
+      "rms_ratio_minimum_inclusive": 6.0,
+      "route_name": "strong_impact_recovery"
+    }
+  },
+  "research_status": {
+    "development_only": true,
+    "not_external_validated": true,
+    "not_live_default": true,
+    "not_production": true,
+    "provisional": true
+  },
+  "source_development_datasets": [
+    {
+      "dataset_fingerprint_sha256": "88a003966141d15858a2afec390c42e567439eb5f538b958e7aa60ee7638ab83",
+      "historical_evidence_role": null,
+      "session_id": "20260901T131308.362205Z-f9e2b1ec",
+      "session_label": "A",
+      "v2_evidence_role": "development",
+      "verified_unchanged_during_generation": true
+    },
+    {
+      "dataset_fingerprint_sha256": "6b6b7cff6ff4f597d0c4c9bc8ccea3544cda99e4d25bf9be1cc732ee6b9ee5ac",
+      "historical_evidence_role": "external_validation",
+      "session_id": "20260904T171453.458221Z-4ecb16ad",
+      "session_label": "B",
+      "v2_evidence_role": "development",
+      "verified_unchanged_during_generation": true
+    }
+  ],
+  "target": {
+    "negative_label": "NON_TAP",
+    "positive_label": "TAP",
+    "spatial_inputs_used": false,
+    "task": "tap_vs_non_tap"
+  },
+  "training_membership": {
+    "negative_candidate_count": 124,
+    "negative_candidate_ids": [
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@150186",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@182640",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@208449",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@258601",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@308194",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@340754",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@388482",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@464762",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001@521428",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001@473125",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001@486053",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001@498502",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001@67201",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001@163201",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001@328809",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001@341766",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@104880",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@196094",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@210007",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@235930",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@269173",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@282820",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@338740",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@362196",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@396934",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@433291",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001@524693",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002@221448",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002@324322",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002@395486",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002@409700",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002@501840",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002@71110",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002@194765",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002@289356",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002@470792",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002@516720",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002@152400",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002@188337",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002@257396",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002@351072",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002@129094",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@132557",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@159316",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@232685",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@244816",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@264737",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@291120",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@410779",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002@515714",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@96918",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@193137",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@226777",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@283440",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@508383",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@537720",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@719952",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@762577",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@991920",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@1077266",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@1734024",
+      "20260904T171453.458221Z-4ecb16ad-typing-001@1756800",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@135754",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@264624",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@437290",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@544141",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@980097",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@1170621",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@1258654",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@1288343",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@1549847",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@1841238",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@1978875",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001@2140128",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@158025",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@306791",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@387840",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@447444",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@554716",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@595492",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@636416",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@726319",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@840425",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1075213",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1136590",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1309212",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1418640",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1532957",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1577112",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1618866",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@1841623",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@2053931",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@2090457",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001@2205123",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@144000",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@465865",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@556754",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@828732",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@1353660",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@1552185",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@1648486",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@1763660",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@1795802",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001@1941008",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@248356",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@516980",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@625016",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@675563",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@727765",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@919842",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@934800",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@996771",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1169858",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1223416",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1291980",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1315002",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1525756",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1642887",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1737775",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1796471",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1967852",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@1980720",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@2006640",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001@2182451"
+    ],
+    "positive_candidate_count": 59,
+    "positive_candidate_ids": [
+      "20260901T131308.362205Z-f9e2b1ec-left_light_001@70800",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_001@72480",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_001@74640",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_001@73010",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_001@71323",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_001@72105",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_002@71813",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_002@76084",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_002@74323",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_002@74640",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_002@69778",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_002@72960",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_003@70080",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_003@70320",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_003@71121",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_003@72197",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_003@70491",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_003@71803",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_004@72754",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_004@67920",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_004@72280",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_004@78373",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_004@70041",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_004@70506",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_005@70081",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_005@70111",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_005@75325",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_005@72756",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_005@75120",
+      "20260904T171453.458221Z-4ecb16ad-left_light_001@74880",
+      "20260904T171453.458221Z-4ecb16ad-right_light_001@76800",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_001@75370",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_001@71626",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_001@73953",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_001@73858",
+      "20260904T171453.458221Z-4ecb16ad-left_light_002@74507",
+      "20260904T171453.458221Z-4ecb16ad-right_light_002@69564",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_002@75909",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_002@74400",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_002@73548",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_002@75600",
+      "20260904T171453.458221Z-4ecb16ad-left_light_003@73765",
+      "20260904T171453.458221Z-4ecb16ad-right_light_003@74160",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_003@76229",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_003@71040",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_003@67753",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_003@76124",
+      "20260904T171453.458221Z-4ecb16ad-left_light_004@68696",
+      "20260904T171453.458221Z-4ecb16ad-right_light_004@71553",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_004@70674",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_004@72726",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_004@72596",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_004@70504",
+      "20260904T171453.458221Z-4ecb16ad-left_light_005@70080",
+      "20260904T171453.458221Z-4ecb16ad-right_light_005@71794",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_005@72355",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_005@75418",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_005@67084",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_005@73031"
+    ],
+    "r1_candidates_used": false,
+    "source_group_ids": [
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_001",
+      "20260901T131308.362205Z-f9e2b1ec-desk_object_interaction_002",
+      "20260901T131308.362205Z-f9e2b1ec-hand_movement_002",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_001",
+      "20260901T131308.362205Z-f9e2b1ec-laptop_movement_002",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_001",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_002",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_003",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_004",
+      "20260901T131308.362205Z-f9e2b1ec-left_firm_005",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_001",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_002",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_003",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_004",
+      "20260901T131308.362205Z-f9e2b1ec-left_light_005",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_001",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_002",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_003",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_004",
+      "20260901T131308.362205Z-f9e2b1ec-left_normal_005",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_001",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_002",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_003",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_004",
+      "20260901T131308.362205Z-f9e2b1ec-right_firm_005",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_001",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_002",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_003",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_004",
+      "20260901T131308.362205Z-f9e2b1ec-right_light_005",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_001",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_002",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_003",
+      "20260901T131308.362205Z-f9e2b1ec-right_normal_004",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_001",
+      "20260901T131308.362205Z-f9e2b1ec-trackpad_002",
+      "20260901T131308.362205Z-f9e2b1ec-typing_001",
+      "20260901T131308.362205Z-f9e2b1ec-typing_002",
+      "20260904T171453.458221Z-4ecb16ad-desk_object_interaction-001",
+      "20260904T171453.458221Z-4ecb16ad-hand_movement-001",
+      "20260904T171453.458221Z-4ecb16ad-laptop_movement-001",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_001",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_002",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_003",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_004",
+      "20260904T171453.458221Z-4ecb16ad-left_firm_005",
+      "20260904T171453.458221Z-4ecb16ad-left_light_001",
+      "20260904T171453.458221Z-4ecb16ad-left_light_002",
+      "20260904T171453.458221Z-4ecb16ad-left_light_003",
+      "20260904T171453.458221Z-4ecb16ad-left_light_004",
+      "20260904T171453.458221Z-4ecb16ad-left_light_005",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_001",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_002",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_003",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_004",
+      "20260904T171453.458221Z-4ecb16ad-left_normal_005",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_001",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_002",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_003",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_004",
+      "20260904T171453.458221Z-4ecb16ad-right_firm_005",
+      "20260904T171453.458221Z-4ecb16ad-right_light_001",
+      "20260904T171453.458221Z-4ecb16ad-right_light_002",
+      "20260904T171453.458221Z-4ecb16ad-right_light_003",
+      "20260904T171453.458221Z-4ecb16ad-right_light_004",
+      "20260904T171453.458221Z-4ecb16ad-right_light_005",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_001",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_002",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_003",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_004",
+      "20260904T171453.458221Z-4ecb16ad-right_normal_005",
+      "20260904T171453.458221Z-4ecb16ad-trackpad-001",
+      "20260904T171453.458221Z-4ecb16ad-typing-001"
+    ],
+    "target_labels_sha256": "dc1b48b503cdbf8c772cab4d863eb58d6e50df54a0e953168addb60dc57a7206",
+    "total_candidate_count": 183
+  }
+}

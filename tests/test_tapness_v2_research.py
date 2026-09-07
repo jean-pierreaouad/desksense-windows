@@ -10,6 +10,19 @@ import numpy as np
 import pytest
 
 import desksense.tapness_v2_research as research
+from desksense.robustness_dataset import (
+    POSITIVE_RECORD_TYPE,
+    LoadedRobustnessDataset,
+    RobustnessRecord,
+)
+from desksense.streaming import (
+    ArmedBlockDiagnostic,
+    CandidateStartDiagnostic,
+    DetectionResult,
+    DetectorDiagnosticCounters,
+    DetectorDiagnosticSnapshot,
+    DetectorState,
+)
 from desksense.tapness_v2_research import (
     TAPNESS_V2_RESEARCH_FEATURE_NAMES,
     TapnessV2ResearchError,
@@ -337,6 +350,121 @@ def test_report_writer_is_json_safe_and_refuses_overwrite(tmp_path: Path) -> Non
     assert json.loads(destination.read_text(encoding="utf-8"))["value"] == 1.0
     with pytest.raises(TapnessV2ResearchError, match="Refusing to overwrite"):
         write_tapness_v2_research_report(report, destination)
+
+
+def test_detector_rejection_with_candidate_bytes_is_not_stage2_eligible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    block = ArmedBlockDiagnostic(
+        stream_epoch=0,
+        block_start_frame_index=49_920,
+        block_end_frame_index_exclusive=50_160,
+        block_rms=0.1,
+        block_peak_absolute=0.2,
+        block_crest_factor=2.0,
+        learned_noise_floor_rms=0.001,
+        required_rms_threshold=0.01,
+        required_peak_threshold=0.02,
+        required_crest_threshold=3.0,
+        rms_ratio=10.0,
+        peak_ratio=10.0,
+        crest_ratio=2.0 / 3.0,
+        all_gates_score=2.0 / 3.0,
+    )
+    start = CandidateStartDiagnostic(
+        stream_epoch=0,
+        onset_frame_index=50_000,
+        block=block,
+        route="strong_impact_recovery",
+    )
+    rejected = DetectionResult(
+        status="rejected",
+        rejection_reasons=("near_clipping",),
+        stream_epoch=0,
+        onset_frame_index=50_000,
+        center_frame_index=50_100,
+        window_start_frame_index=45_300,
+        window_end_frame_index_exclusive=54_900,
+        finalized_after_frame_index_exclusive=54_900,
+        candidate_window=np.zeros((9_600, 2), dtype=np.float32),
+        metrics={},
+        state_before=DetectorState.COLLECTING,
+        state_after=DetectorState.REFRACTORY,
+    )
+
+    class RejectedDetector:
+        def __init__(self) -> None:
+            self.emitted = False
+
+        def process_chunk(self, chunk):
+            if self.emitted:
+                return ()
+            self.emitted = True
+            return (rejected,)
+
+        def drain_candidate_start_diagnostics(self):
+            return (start,) if self.emitted and not hasattr(self, "drained") else ()
+
+        def diagnostic_snapshot(self):
+            self.drained = True
+            counters = DetectorDiagnosticCounters(
+                onset_candidates_started=1,
+                completed_rejections=1,
+            )
+            return DetectorDiagnosticSnapshot(
+                stream_epoch=0,
+                state=DetectorState.REFRACTORY,
+                processed_frame_count=96_000,
+                learned_noise_floor_rms=0.001,
+                cumulative_counters=counters,
+                interval_counters=counters,
+                closest_armed_block=None,
+                buffered_candidate_start_record_count=0,
+            )
+
+    record = RobustnessRecord(
+        metadata={
+            "record_id": "rejected-positive",
+            "record_type": POSITIVE_RECORD_TYPE,
+            "intended_zone": "LEFT",
+            "intended_strength": "normal",
+            "guided_cue": {
+                "intended_event_association": {
+                    "start_frame_index_inclusive": 43_200,
+                    "end_frame_index_exclusive": 79_200,
+                }
+            },
+        },
+        capture=np.zeros((96_000, 2), dtype=np.float32),
+        path=Path("unused.npz"),
+    )
+    dataset = LoadedRobustnessDataset(
+        directory=Path("unused"),
+        session={"session_id": "rejected-test"},
+        records=(record,),
+    )
+    monkeypatch.setattr(
+        research,
+        "extract_tapness_v2_research_features",
+        lambda *args, **kwargs: pytest.fail("rejected result reached Stage 2"),
+    )
+
+    rows, population, _ = research._collect_research_candidates(
+        "test", dataset, RejectedDetector
+    )
+
+    assert rows == []
+    assert population["associated_candidate_start_count"] == 1
+    assert population["positive_associated_candidate_start_identities"] == [
+        {
+            "source_record_id": "rejected-positive",
+            "onset_frame_index": 50_000,
+            "candidate_start_route": "strong_impact_recovery",
+        }
+    ]
+    assert population["negative_activity_candidate_start_identities"] == []
+    assert population["associated_completed_detections"] == 0
+    assert population["associated_completed_rejections"] == 1
 
 
 def test_experiment_19_exact_local_reproduction_when_datasets_are_available() -> None:
