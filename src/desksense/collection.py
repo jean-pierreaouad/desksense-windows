@@ -470,7 +470,7 @@ def record_collection_attempt(
         raise
 
     try:
-        audio_backend.wait()
+        capture_status = audio_backend.wait()
     except KeyboardInterrupt:
         _stop_collection_capture(audio_backend)
         raise
@@ -480,6 +480,12 @@ def record_collection_attempt(
         raise DatasetCollectionError(
             details["message"], category=details["category"]
         ) from error
+
+    if capture_status:
+        raise DatasetCollectionError(
+            f"Audio backend reported a recording error: {capture_status}.",
+            category="invalid_capture",
+        )
 
     captured_array = np.asarray(captured)
     if captured_array.ndim == 1 and channels == 1:

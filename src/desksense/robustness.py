@@ -314,7 +314,7 @@ def record_robustness_segment(
         _stop_robustness_capture(audio_backend)
         raise
     try:
-        audio_backend.wait()
+        capture_status = audio_backend.wait()
     except KeyboardInterrupt:
         _stop_robustness_capture(audio_backend)
         raise
@@ -324,6 +324,11 @@ def record_robustness_segment(
         raise RobustnessError(
             details["message"], category=details["category"]
         ) from error
+    if capture_status:
+        raise RobustnessError(
+            f"Audio backend reported a recording error: {capture_status}.",
+            category="invalid_capture",
+        )
     try:
         audio = validate_robustness_capture(captured)
     except ValueError as error:
